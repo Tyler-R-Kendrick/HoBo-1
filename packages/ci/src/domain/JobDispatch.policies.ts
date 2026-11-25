@@ -1,4 +1,5 @@
 import * as Domain from "@alchemy.run/domain";
+import type { Handler, TriggerOf } from "@alchemy.run/domain/Policy";
 import * as Effect from "effect/Effect";
 import { DispatchJob } from "./DispatchJob.saga.js";
 import { NonEmptyReason, NonNegativeMicros } from "./ids.js";
@@ -76,7 +77,7 @@ export const JobCompletedPolicyLive = JobCompletedPolicy.toLayer(
 					settledMicros: event.settledMicros,
 				}),
 			);
-		});
+		}) as Handler<TriggerOf<typeof JobCompletedPolicy>>;
 	}),
 );
 
@@ -111,6 +112,6 @@ export const JobExpiredPolicyLive = JobExpiredPolicy.toLayer(
 					settledMicros: ZERO_MICROS,
 				}),
 			);
-		});
+		}) as Handler<TriggerOf<typeof JobExpiredPolicy>>;
 	}),
 );

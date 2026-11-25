@@ -136,13 +136,16 @@ export const ExecuteCdPromotionLive = ExecuteCdPromotion.toLayer(
 				ExecuteCdPromotion.withCompensation(({ realizationRef }) =>
 					Activity.make({
 						name: "compensate-rollback-realized-camp",
-						success: RollbackResultSchema,
-						error: CampRealizationFailed,
-						execute: realizer.rollbackCamp({
-							promotionId: key,
-							campId,
-							realizationRef,
-						}),
+						execute: realizer
+							.rollbackCamp({
+								promotionId: key,
+								campId,
+								realizationRef,
+							})
+							.pipe(
+								Effect.catchTag("CampRealizationFailed", () => Effect.void),
+								Effect.asVoid,
+							),
 					}),
 				),
 				Effect.catchTag("CampRealizationFailed", (failure) =>
