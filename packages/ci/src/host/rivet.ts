@@ -11,8 +11,8 @@ import {
 	type JobDispatchId as JobDispatchIdType,
 	NonNegativeMicros,
 	type NonNegativeMicros as NonNegativeMicrosType,
-	RunnerPoolId,
 	type RunnerBackend,
+	RunnerPoolId,
 	type RunnerPoolId as RunnerPoolIdType,
 	type RunnerTier,
 	SlotId,
@@ -96,20 +96,12 @@ const AcquireCiLeaseInputSchema = Schema.Struct({
 	slotId: SlotId,
 	jobId: JobDispatchId,
 	poolId: RunnerPoolId,
-	tier: Schema.Literals([
-		"local",
-		"hostinger",
-		"agent37",
-		"boat",
-		"hosted",
-	]),
+	tier: Schema.Literals(["local", "hostinger", "agent37", "boat", "hosted"]),
 	reservedMicros: NonNegativeMicros,
 	ttlMs: Schema.Int,
 });
 
-const decodeAcquireCiLeaseInput = Schema.decodeUnknownSync(
-	AcquireCiLeaseInputSchema,
-);
+const decodeAcquireCiLeaseInput = Schema.decodeSync(AcquireCiLeaseInputSchema);
 
 export interface CompleteCiLeaseInput {
 	readonly slotId: SlotIdType;
@@ -121,7 +113,7 @@ const CompleteCiLeaseInputSchema = Schema.Struct({
 	settledMicros: NonNegativeMicros,
 });
 
-const decodeCompleteCiLeaseInput = Schema.decodeUnknownSync(
+const decodeCompleteCiLeaseInput = Schema.decodeSync(
 	CompleteCiLeaseInputSchema,
 );
 
@@ -176,13 +168,13 @@ export function createCiStationLeaseRegistry(
 		actions: {
 			acquireLease: async (
 				c,
-				rawInput: unknown,
+				input: AcquireCiLeaseInput,
 			): Promise<CiStationLeaseRecord> => {
-				const input = decodeAcquireCiLeaseInput(rawInput);
+				const validated = decodeAcquireCiLeaseInput(input);
 				const existingRows = decodeLeaseRows(
 					await c.db.execute(
 						"SELECT slot_id, job_id, pool_id, tier, reserved_micros, status, settled_micros, created_at_ms, expires_at_ms FROM ci_station_leases WHERE job_id = ?",
-						input.jobId,
+						validated.jobId,
 					),
 				);
 				const existing = existingRows[0];
@@ -191,44 +183,44 @@ export function createCiStationLeaseRegistry(
 				}
 
 				const nowMs = Date.now();
-				const ttlMs = Math.max(10, Math.trunc(input.ttlMs));
+				const ttlMs = Math.max(10, Math.trunc(validated.ttlMs));
 				const expiresAtMs = nowMs + ttlMs;
 				await c.db.execute(
 					`INSERT INTO ci_station_leases
 						(slot_id, job_id, pool_id, tier, reserved_micros, status, settled_micros, created_at_ms, expires_at_ms)
 					VALUES (?, ?, ?, ?, ?, 'active', 0, ?, ?)`,
-					input.slotId,
-					input.jobId,
-					input.poolId,
-					input.tier,
-					input.reservedMicros,
+					validated.slotId,
+					validated.jobId,
+					validated.poolId,
+					validated.tier,
+					validated.reservedMicros,
 					nowMs,
 					expiresAtMs,
 				);
 				const lease: CiStationLeaseRecord = {
-					slotId: input.slotId,
-					jobId: input.jobId,
-					poolId: input.poolId,
-					tier: input.tier,
-					reservedMicros: input.reservedMicros,
+					slotId: validated.slotId,
+					jobId: validated.jobId,
+					poolId: validated.poolId,
+					tier: validated.tier,
+					reservedMicros: validated.reservedMicros,
 					status: "active",
 					settledMicros: 0,
 					createdAtMs: nowMs,
 					expiresAtMs,
 				};
-				await c.schedule.after(ttlMs, "expireLease", input.slotId);
+				await c.schedule.after(ttlMs, "expireLease", validated.slotId);
 				c.broadcast("leaseUpdated", { action: "acquired", lease });
 				return lease;
 			},
 			completeLease: async (
 				c,
-				rawInput: unknown,
+				input: CompleteCiLeaseInput,
 			): Promise<CiStationLeaseRecord | null> => {
-				const input = decodeCompleteCiLeaseInput(rawInput);
+				const validated = decodeCompleteCiLeaseInput(input);
 				const rows = decodeLeaseRows(
 					await c.db.execute(
 						"SELECT slot_id, job_id, pool_id, tier, reserved_micros, status, settled_micros, created_at_ms, expires_at_ms FROM ci_station_leases WHERE slot_id = ?",
-						input.slotId,
+						validated.slotId,
 					),
 				);
 				const existing = rows[0];
@@ -237,13 +229,13 @@ export function createCiStationLeaseRegistry(
 
 				await c.db.execute(
 					"UPDATE ci_station_leases SET status = 'completed', settled_micros = ? WHERE slot_id = ? AND status = 'active'",
-					input.settledMicros,
-					input.slotId,
+					validated.settledMicros,
+					validated.slotId,
 				);
 				const updated: CiStationLeaseRecord = {
 					...toLeaseRecord(existing),
 					status: "completed",
-					settledMicros: input.settledMicros,
+					settledMicros: validated.settledMicros,
 				};
 				c.broadcast("leaseUpdated", { action: "completed", lease: updated });
 				return updated;

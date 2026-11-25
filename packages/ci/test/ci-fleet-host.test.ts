@@ -269,6 +269,7 @@ describe("@hobo/ci/host portable hosting (InMemory, HTTP, SQLite, Rivet)", () =>
 						jobId: JobDispatchId.make("job-rivet-bad-micros"),
 						poolId: LOCAL_POOL.poolId,
 						tier: "local",
+						// @ts-expect-error exercises Rivet RPC decode when reservedMicros is negative
 						reservedMicros: -1,
 						ttlMs: 1_000,
 					}),
