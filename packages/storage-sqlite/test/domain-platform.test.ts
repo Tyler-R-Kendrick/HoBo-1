@@ -13,7 +13,6 @@ import {
 } from "../src/index.js";
 
 const CounterId = Schema.String.pipe(Schema.brand("CounterId"));
-type CounterId = typeof CounterId.Type;
 
 class Incremented extends Domain.Event("Incremented", {
 	delta: Schema.Int,
