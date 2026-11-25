@@ -7,7 +7,6 @@ import {
 import * as Layer from "effect/Layer";
 import { GhRelay, GhRelayHandlers } from "../domain/index.js";
 import {
-	createGhRelayRouteFactsFromStore,
 	GhRelayRouteFactsFailClosed,
 	type GhRelayRouteFactsService,
 } from "./route-facts.js";

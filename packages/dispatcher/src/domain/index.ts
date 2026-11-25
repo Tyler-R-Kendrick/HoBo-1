@@ -34,7 +34,6 @@ export {
 	UnconfiguredDispatchAccount,
 	UnknownReservation,
 	UsageEvidenceRequired,
-	SettlementExceedsHold,
 } from "./DispatchAccount.aggregate.js";
 export {
 	ActiveReservationHold,
