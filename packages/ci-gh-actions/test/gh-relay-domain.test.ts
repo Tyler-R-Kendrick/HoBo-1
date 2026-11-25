@@ -1,5 +1,6 @@
 import * as Domain from "@alchemy.run/domain";
 import { Story } from "@alchemy.run/domain/Story";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import type * as Layer from "effect/Layer";
@@ -17,6 +18,7 @@ import {
 	GhAccountStatusView,
 	GhActorId,
 	GhAdvertKeyId,
+	type GhAutoSize,
 	GhCheckMixedStepsRefused,
 	GhDeliveryId,
 	GhJobAutoRetryRecorded,
@@ -104,6 +106,7 @@ const ACCOUNT = GhAccountId.make("acct-gh-1");
 const REPO = GhRepoSlug.make("octo/app");
 const ACTOR_OWNER = GhActorId.make("42");
 const T0 = EpochMs.make(1_763_400_000_000);
+const PREDICT_NOW = DateTime.makeUnsafe(T0);
 const NODE_ID = "hobo-relay-node";
 
 const routerRef = GhRelayRouter.ref(ACCOUNT);
@@ -1284,8 +1287,12 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				},
 			],
 			skipUnhealthy: true,
-			autoSizeVcpus: 2,
-			retry: { enabled: false, target: "other", maxRetries: 0 },
+			autoSizeVcpus: 2 as GhAutoSize,
+			retry: {
+				enabled: false,
+				target: "other" as const,
+				maxRetries: 1 as const,
+			},
 		};
 		const machineSnapshot = (busy: number) => ({
 			machineId,
@@ -1319,7 +1326,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				machines: [machineSnapshot(0)],
 				fleet: DEFAULT_ROUTE_FACTS.fleet,
 			}),
-			{ id: ACCOUNT, now: new Date(T0) },
+			{ id: ACCOUNT, now: PREDICT_NOW },
 		);
 		expect(routed._tag).toBe("Accepted");
 		if (routed._tag === "Accepted") {
@@ -1354,7 +1361,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				actorId: ACTOR_OWNER,
 				ownerCanRead: true,
 			}),
-			{ id: ACCOUNT, now: new Date(T0) },
+			{ id: ACCOUNT, now: PREDICT_NOW },
 		);
 		expect(acquireRace).toMatchObject({
 			_tag: "Rejected",
@@ -1371,7 +1378,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				machines: [machineSnapshot(1)],
 				fleet: DEFAULT_ROUTE_FACTS.fleet,
 			}),
-			{ id: ACCOUNT, now: new Date(T0) },
+			{ id: ACCOUNT, now: PREDICT_NOW },
 		);
 		expect(waiting._tag).toBe("Accepted");
 		if (waiting._tag === "Accepted") {
@@ -1404,7 +1411,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				machines: [],
 				fleet: null,
 			}),
-			{ id: ACCOUNT, now: new Date(T0) },
+			{ id: ACCOUNT, now: PREDICT_NOW },
 		);
 		expect(prediction._tag).toBe("Accepted");
 		if (prediction._tag === "Accepted") {
@@ -1488,7 +1495,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				actorId: ACTOR_OWNER,
 				ownerCanRead: true,
 			}),
-			{ id: ACCOUNT, now: new Date(T0) },
+			{ id: ACCOUNT, now: PREDICT_NOW },
 		);
 		expect(prediction._tag).toBe("Accepted");
 		if (prediction._tag === "Accepted") {
