@@ -107,7 +107,9 @@ function weekdayList(value: string): readonly WeekdaySpec[] | undefined {
 		if (match[1] !== undefined && (ordinal === 0 || Math.abs(ordinal) > 53))
 			return undefined;
 		const code = match[2];
-		const weekday = WEEKDAYS.indexOf(code);
+		if (code === undefined) return undefined;
+		const weekday = WEEKDAYS.indexOf(code as (typeof WEEKDAYS)[number]);
+		if (weekday < 0) return undefined;
 		out.push({ weekday, ordinal });
 	}
 	return out;
