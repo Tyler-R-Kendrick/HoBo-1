@@ -6,11 +6,9 @@ import {
 } from "@hobo/storage-sqlite";
 import * as Layer from "effect/Layer";
 import { GhRelay, GhRelayHandlers } from "../domain/index.js";
-import type { GhRelayRouteFactsService } from "./route-facts.js";
 import type { GhLintSandboxService, GhRunnerProtocolService } from "./rivet.js";
+import type { GhRelayRouteFactsService } from "./route-facts.js";
 import { GhRelayRouteFactsFailClosed } from "./route-facts.js";
-
-export { GhRelayRouteFactsFailClosed } from "./route-facts.js";
 
 export {
 	type AnswerPickRunnerInput,
@@ -26,6 +24,7 @@ export {
 	type GhRelayRivetHostOptions,
 	type GhRunnerProtocolService,
 } from "./rivet.js";
+export { GhRelayRouteFactsFailClosed } from "./route-facts.js";
 
 export function createGhRelayInMemoryLayer<
 	ProtoErr,
@@ -70,7 +69,7 @@ export function createGhRelaySqliteLayer<
 			ProtoErr,
 			ProtoReq
 		>;
-		readonly 		lintSandbox: Layer.Layer<
+		readonly lintSandbox: Layer.Layer<
 			GhLintSandboxService,
 			SandboxErr,
 			SandboxReq

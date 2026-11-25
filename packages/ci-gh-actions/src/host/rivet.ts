@@ -14,8 +14,8 @@ import {
 	type GhRunnerProtocol,
 } from "../domain/index.js";
 import {
-	type GhRelayRouteFactsService,
 	GhRelayRouteFactsFailClosed,
+	type GhRelayRouteFactsService,
 } from "./route-facts.js";
 
 export type GhRunnerProtocolService = Layer.Success<

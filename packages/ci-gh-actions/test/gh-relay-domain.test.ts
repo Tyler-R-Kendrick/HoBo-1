@@ -2,10 +2,11 @@ import * as Domain from "@alchemy.run/domain";
 import { Story } from "@alchemy.run/domain/Story";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import * as Layer from "effect/Layer";
+import type * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import {
+	AcquireGhMachineSlot,
 	AnswerGhRelayJob,
 	ClearGhProviderHealth,
 	ConnectGhMachine,
@@ -24,7 +25,6 @@ import {
 	GhMachineId,
 	GhMachinePaused,
 	GhMachinePool,
-	AcquireGhMachineSlot,
 	GhMachineRemoved,
 	GhMachineResumed,
 	GhMachineSlotAcquired,
@@ -58,6 +58,8 @@ import {
 	GhRunnerOrderConfigured,
 	GhRunnerProtocol,
 	GhStaleAdvertKey,
+	isGhProviderLabel,
+	isGhRunnerLabelToken,
 	NonEmptyReason,
 	NonNegativeCents,
 	NonNegativeCount,
@@ -67,8 +69,6 @@ import {
 	PositiveRunId,
 	PositiveSlots,
 	parseGhRelayInputs,
-	isGhProviderLabel,
-	isGhRunnerLabelToken,
 	parseGhRunsOn,
 	QueueGhRelayJob,
 	RecordGhProviderMiss,
@@ -1519,7 +1519,9 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 	});
 
 	it("rejects protocol answers GitHub did not accept", async () => {
-		const refusedJob = GhRelayJob.ref(GhRelayJobId.make("job-refused-protocol"));
+		const refusedJob = GhRelayJob.ref(
+			GhRelayJobId.make("job-refused-protocol"),
+		);
 		const ctx = jobContext({
 			runsOn: [GhRunnerLabel.make("hobo-relay")],
 			checkSteps: [
@@ -1544,9 +1546,7 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				Story.saga(AnswerGhRelayJob, refusedJob, {
 					_tag: "Rejected",
 					rejection: new GhProtocolRejected({
-						reason: NonEmptyReason.make(
-							"GitHub refused the relay job answer.",
-						),
+						reason: NonEmptyReason.make("GitHub refused the relay job answer."),
 					}),
 				}),
 				Story.then(

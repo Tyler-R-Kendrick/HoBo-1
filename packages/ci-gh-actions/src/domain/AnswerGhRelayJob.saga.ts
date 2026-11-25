@@ -497,7 +497,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 				name: "answer-routed-protocol",
 				success: Schema.Void,
 				error: GhProtocolRejected,
-						execute: confirmProtocolAnswer(protocol.answerJob, {
+				execute: confirmProtocolAnswer(protocol.answerJob, {
 					accountId: context.accountId,
 					repository: context.repository,
 					jobId: key,

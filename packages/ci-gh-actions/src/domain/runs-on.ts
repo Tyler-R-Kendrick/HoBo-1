@@ -33,8 +33,7 @@ const GITHUB_HOSTED_LABELS: ReadonlySet<string> = new Set([
 	"macos-13",
 ]);
 
-const RUNS_ON_PROVIDER_LABEL =
-	/^runs-on=\d+\/runner=\d+cpu-linux-x64$/u;
+const RUNS_ON_PROVIDER_LABEL = /^runs-on=\d+\/runner=\d+cpu-linux-x64$/u;
 
 const RUNNER_LABEL_FORBIDDEN = /[/,=]/u;
 
