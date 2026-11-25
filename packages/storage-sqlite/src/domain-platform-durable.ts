@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import type * as Semaphore from "effect/Semaphore";
 import { asNumber, asText, type SqliteDriver, type SqliteRunResult } from "./driver.js";
 
+// public-contract: SQLite DDL for durable domain side tables (outbox, schedules, workflow timers).
 export const SQLITE_DOMAIN_DURABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS domain_outbox (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,8 +106,14 @@ export function makeDomainOutbox(driver: SqliteDriver): DomainOutbox {
 		"SELECT COUNT(*) AS n FROM domain_outbox WHERE model_name = ?",
 	);
 
-	const decodeDelivery = (json: string): Delivery =>
-		JSON.parse(json) as Delivery;
+	const decodeDelivery = (json: string): Delivery => {
+		const parsed = JSON.parse(json);
+		if (parsed === null || !Object.prototype.hasOwnProperty.call(parsed, "target")) {
+			throw new DomainPersistenceError("domain_outbox.delivery", 0);
+		}
+		// SAFETY: Outbox rows are written only by this module with Delivery-shaped JSON from domain commits.
+		return parsed as Delivery;
+	};
 
 	return {
 		stageWithinTransaction(modelName, deliveries) {

@@ -426,7 +426,7 @@ export function createSqliteDomainPlatform(
 				if (input.deliveries !== undefined && input.deliveries.length > 0) {
 					return outbox.stageWithinTransaction(modelName, input.deliveries);
 				}
-				return [] as number[];
+				return [] satisfies number[];
 			});
 		};
 	};

@@ -100,6 +100,22 @@ export class UsageEvidenceRequired extends Domain.Rejection(
 	},
 ) {}
 
+export class SettlementExceedsHold extends Domain.Rejection(
+	"SettlementExceedsHold",
+	{
+		reservationId: ReservationId,
+		reservedMicros: NonNegativeMicros,
+		settledMicros: NonNegativeMicros,
+	},
+) {}
+
+export class DispatchOverrunReconciliationRequired extends Domain.Rejection(
+	"DispatchOverrunReconciliationRequired",
+	{
+		accountId: ScopedAccountId,
+	},
+) {}
+
 export class DispatchAccountConfigured extends Domain.Event(
 	"DispatchAccountConfigured",
 	{
@@ -198,6 +214,7 @@ export class ReserveDispatch extends Domain.Command(
 		events: [DispatchReserved],
 		rejects: [
 			AccountNotConfigured,
+			DispatchOverrunReconciliationRequired,
 			DuplicateReservation,
 			InsufficientHeadroom,
 			BudgetCapExceeded,
@@ -217,7 +234,11 @@ export class StartReservation extends Domain.Command(
 			reservationId: ReservationId,
 		},
 		events: [DispatchReservationStarted],
-		rejects: [AccountNotConfigured, UnknownReservation, ReservationNotStartable],
+		rejects: [
+			AccountNotConfigured,
+			UnknownReservation,
+			ReservationNotStartable,
+		],
 	},
 	{
 		description:
@@ -261,6 +282,7 @@ export class ConfirmReservation extends Domain.Command(
 			UnknownReservation,
 			ReservationNotConfirmable,
 			UsageEvidenceRequired,
+			SettlementExceedsHold,
 		],
 	},
 	{
@@ -401,6 +423,9 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 		ReserveDispatch: (state, cmd, { id }) => {
 			if (state._tag === "Unconfigured") {
 				return new AccountNotConfigured({ accountId: id });
+			}
+			if (state.overrunSeen) {
+				return new DispatchOverrunReconciliationRequired({ accountId: id });
 			}
 			if (
 				state.reservations.some(
@@ -547,10 +572,17 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 					status: existing._tag,
 				});
 			}
-			if (existing._tag === "Running" && cmd.usageEvidenceRef === null) {
+			if (cmd.usageEvidenceRef === null) {
 				return new UsageEvidenceRequired({ reservationId: cmd.reservationId });
 			}
 			const { hold } = existing;
+			if (cmd.settledMicros > hold.reservedMicros) {
+				return new SettlementExceedsHold({
+					reservationId: cmd.reservationId,
+					reservedMicros: hold.reservedMicros,
+					settledMicros: cmd.settledMicros,
+				});
+			}
 			return [
 				new DispatchReservationConfirmed({
 					reservationId: cmd.reservationId,
@@ -627,7 +659,8 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 			rateHeadroom: event.rateHeadroom,
 			concurrencyHeadroom: event.concurrencyHeadroom,
 			budgetCapMicros: event.budgetCapMicros,
-			spentMicros: state._tag === "Configured" ? state.spentMicros : ZERO_MICROS,
+			spentMicros:
+				state._tag === "Configured" ? state.spentMicros : ZERO_MICROS,
 			heldMicros: state._tag === "Configured" ? state.heldMicros : ZERO_MICROS,
 			overrunSeen: state._tag === "Configured" ? state.overrunSeen : false,
 			reservations: state._tag === "Configured" ? state.reservations : [],
@@ -660,7 +693,8 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 			return {
 				...state,
 				reservations: state.reservations.map((entry) =>
-					entry.reservationId === event.reservationId && entry._tag === "Pending"
+					entry.reservationId === event.reservationId &&
+					entry._tag === "Pending"
 						? {
 								_tag: "Running" as const,
 								reservationId: entry.reservationId,

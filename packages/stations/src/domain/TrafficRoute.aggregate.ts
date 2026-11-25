@@ -10,6 +10,7 @@ import {
 	NonEmptyReason,
 	NonNegativeCount,
 	RampWeightPercent,
+	LoweredTtlEvidence,
 	StabilityPolicy,
 	TrafficRouteId,
 	TtlSeconds,
@@ -61,6 +62,7 @@ export class BudgetMigrationProposed extends Domain.Event(
 		to: CloudBackendTarget,
 		reason: NonEmptyReason,
 		proposedAtMs: EpochMs,
+		previousTtlSeconds: TtlSeconds,
 	},
 ) {}
 
@@ -82,7 +84,19 @@ export class CutoverCompleted extends Domain.Event("CutoverCompleted", {
 export class CutoverRolledBack extends Domain.Event("CutoverRolledBack", {
 	restored: CloudBackendTarget,
 	reason: NonEmptyReason,
+	rolledBackAtMs: EpochMs,
+	restoredTtlSeconds: TtlSeconds,
 }) {}
+
+export class CutoverReconciliationResolved extends Domain.Event(
+	"CutoverReconciliationResolved",
+	{
+		incumbent: CloudBackendTarget,
+		ttlSeconds: TtlSeconds,
+		policy: StabilityPolicy,
+		resolvedAtMs: EpochMs,
+	},
+) {}
 
 export class CutoverReconciliationRequired extends Domain.Event(
 	"CutoverReconciliationRequired",
@@ -137,7 +151,7 @@ export class RecordTtlLowered extends Domain.Command(
 	{
 		target: TrafficRouteId,
 		input: {
-			ttlSeconds: TtlSeconds,
+			evidence: LoweredTtlEvidence,
 		},
 		events: [CutoverTtlLowered],
 		rejects: [CutoverNotInProgress, CutoverPreconditionRefused],
@@ -185,6 +199,7 @@ export class RollbackTrafficCutover extends Domain.Command(
 		target: TrafficRouteId,
 		input: {
 			reason: NonEmptyReason,
+			rolledBackAtMs: EpochMs,
 		},
 		events: [CutoverRolledBack],
 		rejects: [CutoverNotInProgress],
@@ -210,6 +225,22 @@ export class FlagCutoverReconciliation extends Domain.Command(
 	},
 ) {}
 
+export class ResolveTrafficCutoverReconciliation extends Domain.Command(
+	"ResolveTrafficCutoverReconciliation",
+	{
+		target: TrafficRouteId,
+		input: {
+			resolvedAtMs: EpochMs,
+		},
+		events: [CutoverReconciliationResolved],
+		rejects: [CutoverPreconditionRefused],
+	},
+	{
+		description:
+			"Clear reconciliation-required state after operator confirms incumbent truth.",
+	},
+) {}
+
 export const UnregisteredRouteState = Schema.TaggedStruct("Unregistered", {});
 
 export const SteadyRouteState = Schema.TaggedStruct("Steady", {
@@ -217,6 +248,7 @@ export const SteadyRouteState = Schema.TaggedStruct("Steady", {
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
+	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
 });
 
@@ -225,7 +257,9 @@ export const TtlLoweringRouteState = Schema.TaggedStruct("TtlLowering", {
 	challenger: CloudBackendTarget,
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
+	registeredTtlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
+	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
 });
 
@@ -235,7 +269,9 @@ export const RampingRouteState = Schema.TaggedStruct("Ramping", {
 	targetWeightPercent: RampWeightPercent,
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
+	registeredTtlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
+	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
 });
 
@@ -244,7 +280,9 @@ export const RolledBackRouteState = Schema.TaggedStruct("RolledBack", {
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
+	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
+	lastRollbackAtMs: Schema.NullOr(EpochMs),
 	reason: NonEmptyReason,
 });
 
@@ -281,6 +319,54 @@ function sameTarget(left: CloudBackendTarget, right: CloudBackendTarget): boolea
 	return left.provider === right.provider && left.backendId === right.backendId;
 }
 
+type SwapWindowState = {
+	swapsInWindow: NonNegativeCount;
+	flipWindowStartMs: EpochMs | null;
+	policy: StabilityPolicy;
+};
+
+function decayFlipWindow(
+	state: SwapWindowState,
+	nowMs: EpochMs,
+): SwapWindowState {
+	if (
+		state.flipWindowStartMs !== null &&
+		nowMs - state.flipWindowStartMs > state.policy.flipWindowMs
+	) {
+		return {
+			...state,
+			swapsInWindow: ZERO_COUNT,
+			flipWindowStartMs: null,
+		};
+	}
+	return state;
+}
+
+interface SwapWindowAfterCompletion {
+	readonly swapsInWindow: NonNegativeCount;
+	readonly flipWindowStartMs: EpochMs;
+}
+
+function swapsAfterCompletion(
+	state: SwapWindowState,
+	completedAtMs: EpochMs,
+): SwapWindowAfterCompletion {
+	const decayed = decayFlipWindow(state, completedAtMs);
+	if (
+		decayed.flipWindowStartMs === null ||
+		completedAtMs - decayed.flipWindowStartMs > decayed.policy.flipWindowMs
+	) {
+		return {
+			swapsInWindow: decodeNonNegativeCount(1),
+			flipWindowStartMs: completedAtMs,
+		};
+	}
+	return {
+		swapsInWindow: decodeNonNegativeCount(decayed.swapsInWindow + 1),
+		flipWindowStartMs: decayed.flipWindowStartMs,
+	};
+}
+
 export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 	id: TrafficRouteId,
 	state: TrafficRouteState,
@@ -293,12 +379,18 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 		CompleteTrafficCutover,
 		RollbackTrafficCutover,
 		FlagCutoverReconciliation,
+		ResolveTrafficCutoverReconciliation,
 	],
 	decide: {
 		RegisterTrafficIncumbent: (state, cmd) => {
 			if (state._tag === "ReconciliationRequired") {
 				return new CutoverPreconditionRefused({
 					reason: "reconciliation-pending",
+				});
+			}
+			if (state._tag === "Steady" || state._tag === "RolledBack") {
+				return new CutoverPreconditionRefused({
+					reason: "incumbent-already-registered",
 				});
 			}
 			if (state._tag === "TtlLowering" || state._tag === "Ramping") {
@@ -331,6 +423,14 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 					});
 				case "Steady":
 				case "RolledBack": {
+					const windowed = decayFlipWindow(
+						{
+							swapsInWindow: state.swapsInWindow,
+							flipWindowStartMs: state.flipWindowStartMs,
+							policy: state.policy,
+						},
+						cmd.nowMs,
+					);
 					if (sameTarget(state.incumbent, cmd.to)) {
 						return new CutoverPreconditionRefused({
 							reason: "target-matches-incumbent",
@@ -352,9 +452,21 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 							nowMs: cmd.nowMs,
 						});
 					}
-					if (state.swapsInWindow >= state.policy.maxSwapsPerWindow) {
+					if (
+						state._tag === "RolledBack" &&
+						state.lastRollbackAtMs !== null &&
+						cmd.nowMs < state.lastRollbackAtMs + state.policy.rollbackCooldownMs
+					) {
+						return new CutoverCooldownActive({
+							nextAllowedAtMs: decodeEpochMs(
+								state.lastRollbackAtMs + state.policy.rollbackCooldownMs,
+							),
+							nowMs: cmd.nowMs,
+						});
+					}
+					if (windowed.swapsInWindow >= state.policy.maxSwapsPerWindow) {
 						return new CutoverFlipLimitExceeded({
-							swapsInWindow: state.swapsInWindow,
+							swapsInWindow: windowed.swapsInWindow,
 							maxSwapsPerWindow: state.policy.maxSwapsPerWindow,
 						});
 					}
@@ -364,6 +476,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 							to: cmd.to,
 							reason: cmd.reason,
 							proposedAtMs: cmd.nowMs,
+							previousTtlSeconds: state.ttlSeconds,
 						}),
 					];
 				}
@@ -373,12 +486,21 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 			if (state._tag !== "TtlLowering") {
 				return new CutoverNotInProgress({ phase: state._tag });
 			}
-			if (cmd.ttlSeconds >= state.ttlSeconds) {
+			if (cmd.evidence.previousTtlSeconds !== state.registeredTtlSeconds) {
 				return new CutoverPreconditionRefused({
 					reason: "ttl-not-lowered",
 				});
 			}
-			return [new CutoverTtlLowered({ ttlSeconds: cmd.ttlSeconds })];
+			if (cmd.evidence.loweredTtlSeconds >= cmd.evidence.previousTtlSeconds) {
+				return new CutoverPreconditionRefused({
+					reason: "ttl-not-lowered",
+				});
+			}
+			return [
+				new CutoverTtlLowered({
+					ttlSeconds: cmd.evidence.loweredTtlSeconds,
+				}),
+			];
 		},
 		RecordRampStep: (state, cmd) => {
 			if (state._tag !== "Ramping") {
@@ -405,11 +527,19 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 					reason: "ramp-incomplete",
 				});
 			}
+			const nextWindow = swapsAfterCompletion(
+				{
+					swapsInWindow: state.swapsInWindow,
+					flipWindowStartMs: state.flipWindowStartMs,
+					policy: state.policy,
+				},
+				cmd.completedAtMs,
+			);
 			return [
 				new CutoverCompleted({
 					incumbent: state.challenger,
 					completedAtMs: cmd.completedAtMs,
-					swapsInWindow: decodeNonNegativeCount(state.swapsInWindow + 1),
+					swapsInWindow: nextWindow.swapsInWindow,
 				}),
 			];
 		},
@@ -421,12 +551,38 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				new CutoverRolledBack({
 					restored: state.incumbent,
 					reason: cmd.reason,
+					rolledBackAtMs: cmd.rolledBackAtMs,
+					restoredTtlSeconds: state.registeredTtlSeconds,
 				}),
 			];
 		},
 		FlagCutoverReconciliation: (_state, cmd) => [
 			new CutoverReconciliationRequired({ reason: cmd.reason }),
 		],
+		ResolveTrafficCutoverReconciliation: (state, cmd) => {
+			if (state._tag !== "ReconciliationRequired") {
+				return new CutoverPreconditionRefused({
+					reason: "not-awaiting-reconciliation",
+				});
+			}
+			if (
+				state.incumbent === null ||
+				state.policy === null ||
+				state.ttlSeconds === null
+			) {
+				return new CutoverPreconditionRefused({
+					reason: "incumbent-not-registered",
+				});
+			}
+			return [
+				new CutoverReconciliationResolved({
+					incumbent: state.incumbent,
+					ttlSeconds: state.ttlSeconds,
+					policy: state.policy,
+					resolvedAtMs: cmd.resolvedAtMs,
+				}),
+			];
+		},
 	},
 	evolve: {
 		TrafficIncumbentRegistered: (state, event) => ({
@@ -436,8 +592,14 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 			ttlSeconds: event.ttlSeconds,
 			swapsInWindow:
 				state._tag === "Unregistered" ? ZERO_COUNT : state.swapsInWindow,
+			flipWindowStartMs:
+				state._tag === "Unregistered" || state._tag === "ReconciliationRequired"
+					? null
+					: state.flipWindowStartMs,
 			lastCompletedAtMs:
-				state._tag === "Unregistered" ? null : state.lastCompletedAtMs,
+				state._tag === "Unregistered" || state._tag === "ReconciliationRequired"
+					? null
+					: state.lastCompletedAtMs,
 		}),
 		BudgetMigrationProposed: (state, event) => {
 			if (state._tag !== "Steady" && state._tag !== "RolledBack") {
@@ -449,7 +611,9 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				challenger: event.to,
 				policy: state.policy,
 				ttlSeconds: state.ttlSeconds,
+				registeredTtlSeconds: event.previousTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
+				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
 			};
 		},
@@ -465,7 +629,9 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 					state._tag === "Ramping" ? state.targetWeightPercent : ZERO_WEIGHT,
 				policy: state.policy,
 				ttlSeconds: event.ttlSeconds,
+				registeredTtlSeconds: state.registeredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
+				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
 			};
 		},
@@ -480,7 +646,9 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				targetWeightPercent: event.targetWeightPercent,
 				policy: state.policy,
 				ttlSeconds: state.ttlSeconds,
+				registeredTtlSeconds: state.registeredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
+				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
 			};
 		},
@@ -488,12 +656,21 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 			if (state._tag !== "Ramping") {
 				return state;
 			}
+			const nextWindow = swapsAfterCompletion(
+				{
+					swapsInWindow: state.swapsInWindow,
+					flipWindowStartMs: state.flipWindowStartMs,
+					policy: state.policy,
+				},
+				event.completedAtMs,
+			);
 			return {
 				_tag: "Steady" as const,
 				incumbent: event.incumbent,
 				policy: state.policy,
 				ttlSeconds: state.ttlSeconds,
-				swapsInWindow: event.swapsInWindow,
+				swapsInWindow: nextWindow.swapsInWindow,
+				flipWindowStartMs: nextWindow.flipWindowStartMs,
 				lastCompletedAtMs: event.completedAtMs,
 			};
 		},
@@ -505,22 +682,51 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				_tag: "RolledBack" as const,
 				incumbent: event.restored,
 				policy: state.policy,
-				ttlSeconds: state.ttlSeconds,
+				ttlSeconds: event.restoredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
+				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
+				lastRollbackAtMs: event.rolledBackAtMs,
 				reason: event.reason,
 			};
 		},
 		CutoverReconciliationRequired: (state, event) => ({
 			_tag: "ReconciliationRequired" as const,
-			incumbent: state._tag === "Unregistered" ? null : state.incumbent,
-			policy: state._tag === "Unregistered" ? null : state.policy,
-			ttlSeconds: state._tag === "Unregistered" ? null : state.ttlSeconds,
+			incumbent:
+				state._tag === "Unregistered"
+					? null
+					: state._tag === "ReconciliationRequired"
+						? state.incumbent
+						: state.incumbent,
+			policy:
+				state._tag === "Unregistered"
+					? null
+					: state._tag === "ReconciliationRequired"
+						? state.policy
+						: state.policy,
+			ttlSeconds:
+				state._tag === "Unregistered"
+					? null
+					: state._tag === "ReconciliationRequired"
+						? state.ttlSeconds
+						: state.ttlSeconds,
 			swapsInWindow:
 				state._tag === "Unregistered" ? ZERO_COUNT : state.swapsInWindow,
 			lastCompletedAtMs:
 				state._tag === "Unregistered" ? null : state.lastCompletedAtMs,
 			reason: event.reason,
+		}),
+		CutoverReconciliationResolved: (state, event) => ({
+			_tag: "Steady" as const,
+			incumbent: event.incumbent,
+			policy: event.policy,
+			ttlSeconds: event.ttlSeconds,
+			swapsInWindow:
+				state._tag === "ReconciliationRequired"
+					? state.swapsInWindow
+					: ZERO_COUNT,
+			flipWindowStartMs: null,
+			lastCompletedAtMs: event.resolvedAtMs,
 		}),
 	},
 }) {}
