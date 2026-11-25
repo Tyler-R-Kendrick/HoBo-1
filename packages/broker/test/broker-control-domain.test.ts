@@ -9,9 +9,9 @@ import {
 	BudgetAccount,
 	BudgetAccountId,
 	BudgetAccountNotConfigured,
-	BudgetCeilingBelowLiabilities,
 	BudgetAlertThresholdCrossed,
 	BudgetAlertThresholdRecovered,
+	BudgetCeilingBelowLiabilities,
 	BudgetCeilingConfigured,
 	BudgetExposureView,
 	BudgetHoldId,
@@ -298,7 +298,9 @@ describe("@hobo/broker/domain BrokerControl Alchemy Domain model", () => {
 						scopeRef: "scope:deployments",
 					}),
 				),
-				Story.rejected(new ConnectionRebindRefused({ providerId: "cloudflare" })),
+				Story.rejected(
+					new ConnectionRebindRefused({ providerId: "cloudflare" }),
+				),
 				Story.view(ConnectionStatusView, conn, {
 					status: "revoked",
 					revocationReason: "rotated-owner-grant",
