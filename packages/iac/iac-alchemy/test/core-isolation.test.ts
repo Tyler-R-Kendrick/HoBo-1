@@ -46,11 +46,7 @@ const extensions = new Set([
 
 const ALCHEMY_DOMAIN_IMPORT = /@alchemy\.run\/domain(?:\/[A-Za-z0-9_.-]+)*/gi;
 
-/**
- * @hobo/dispatcher domain models use Alchemy Domain BDD only; Rivet/IaC packages stay
- * isolated from other @alchemy.run/* imports.
- */
-const PACKAGE_ALCHEMY_DOMAIN_IMPORT_ALLOWANCE = new Set<string>(["dispatcher"]);
+const DISPATCHER_ALCHEMY_DOMAIN_BDD_ONLY = new Set<string>(["dispatcher"]);
 
 function containsReference(value: string): boolean {
 	const decoded = value.replace(
@@ -77,7 +73,7 @@ function packageFromRepoPath(root: string, path: string): string | null {
 }
 
 function stripAllowedDomainImports(packageName: string, text: string): string {
-	if (!PACKAGE_ALCHEMY_DOMAIN_IMPORT_ALLOWANCE.has(packageName)) {
+	if (!DISPATCHER_ALCHEMY_DOMAIN_BDD_ONLY.has(packageName)) {
 		return text;
 	}
 	return text.replace(ALCHEMY_DOMAIN_IMPORT, "");
@@ -88,9 +84,10 @@ function packageJsonViolations(
 	text: string,
 ): string | null {
 	if (!text.includes("alchemy")) return null;
-	if (!PACKAGE_ALCHEMY_DOMAIN_IMPORT_ALLOWANCE.has(packageName)) {
+	if (!DISPATCHER_ALCHEMY_DOMAIN_BDD_ONLY.has(packageName)) {
 		return "package.json";
 	}
+	// SAFETY: package.json text is read from repo paths or mkdtemp fixtures in this test file only.
 	const parsed = JSON.parse(text) as {
 		dependencies?: Record<string, string>;
 		devDependencies?: Record<string, string>;
