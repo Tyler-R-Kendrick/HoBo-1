@@ -13,6 +13,10 @@ import {
 	type GhRunnerLabel,
 	type GhRunnerProtocol,
 } from "../domain/index.js";
+import {
+	GhRelayRouteFactsFailClosed,
+	type GhRelayRouteFactsService,
+} from "./route-facts.js";
 
 export type GhRunnerProtocolService = Layer.Success<
 	ReturnType<typeof GhRunnerProtocol.toLayer>
@@ -43,6 +47,7 @@ export interface GhRelayRivetHostOptions<
 		SandboxErr,
 		SandboxReq
 	>;
+	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 }
 
 export function createGhRelayRivetLayer<
@@ -72,6 +77,7 @@ export function createGhRelayRivetLayer<
 				rivetPlatform,
 				options.runnerProtocol,
 				options.lintSandbox,
+				options.routeFacts ?? GhRelayRouteFactsFailClosed,
 			),
 		),
 	);
@@ -317,6 +323,9 @@ export function createGhPickRunnerRegistry(
 				);
 				const existing = rows[0];
 				if (existing === undefined || existing.status !== "queued") {
+					return { rescued: false, jobId };
+				}
+				if (Date.now() < existing.rescue_at_ms) {
 					return { rescued: false, jobId };
 				}
 				await c.db.execute(
