@@ -138,4 +138,75 @@ describe("@hobo/storage-sqlite createSqliteDomainPlatform", () => {
 			reopenedDriver.close();
 		}
 	});
+
+	it("clears transactional outbox rows after aggregate commits deliver view updates", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "hobo-sqlite-domain-outbox-"));
+		tempDirs.push(dir);
+		const dbPath = join(dir, "domain.sqlite");
+		const counterId = CounterId.make("station-counter-outbox");
+		const driver = createNodeSqliteDriver({ path: dbPath });
+		try {
+			const layer = CounterDomain.layer(Layer.empty).pipe(
+				Layer.provide(createSqliteDomainPlatform(driver)),
+			);
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const counters = yield* CounterAggregate;
+					yield* counters.send(
+						counterId,
+						new IncrementCounter({ delta: 2 }),
+						{ commandId: "cmd-outbox-1" },
+					);
+				}).pipe(Effect.provide(layer)),
+			);
+			const remaining = driver
+				.prepare(
+					"SELECT COUNT(*) AS n FROM domain_outbox WHERE model_name = ?",
+				)
+				.get("CounterDomain");
+			expect(remaining).toBeDefined();
+			expect(Number(remaining?.n)).toBe(0);
+		} finally {
+			driver.close();
+		}
+	});
+
+	it("persists scheduled commands across SQLite restarts", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "hobo-sqlite-domain-schedule-"));
+		tempDirs.push(dir);
+		const dbPath = join(dir, "domain.sqlite");
+		const counterId = CounterId.make("station-counter-schedule");
+		const driver = createNodeSqliteDriver({ path: dbPath });
+		try {
+			const layer = CounterDomain.layer(Layer.empty).pipe(
+				Layer.provide(createSqliteDomainPlatform(driver)),
+			);
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const counters = yield* CounterAggregate;
+					yield* counters.schedule(
+						counterId,
+						new IncrementCounter({ delta: 1 }),
+						{ commandId: "tick", after: "60 seconds" },
+					);
+				}).pipe(Effect.provide(layer)),
+			);
+		} finally {
+			driver.close();
+		}
+
+		const reopened = createNodeSqliteDriver({ path: dbPath });
+		try {
+			const row = reopened
+				.prepare(
+					"SELECT schedule_name, cancelled FROM domain_schedules WHERE instance_id = ?",
+				)
+				.get(counterId);
+			expect(row).toBeDefined();
+			expect(row?.schedule_name).toBe("tick");
+			expect(Number(row?.cancelled)).toBe(0);
+		} finally {
+			reopened.close();
+		}
+	});
 });
