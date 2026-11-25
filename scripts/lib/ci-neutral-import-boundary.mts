@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { z } from "zod";
 
 export function resolveImportSegments(specifier: string): readonly string[] {
 	const parts: string[] = [];
@@ -27,11 +28,8 @@ function packageFolderFromPath(
 ): string | null {
 	const rel = relative(packagesDir, absolutePath);
 	if (rel.startsWith("..")) return null;
-	const folder = rel.split(/[/\\]/u)[0];
-	if (folder === undefined || folder === "") {
-		return null;
-	}
-	return folder;
+	const folder = rel.split(/[/\\]/u)[0] ?? "";
+	return folder === "" ? null : folder;
 }
 
 export function crossPackageFolderFromRelativeImport(
@@ -48,21 +46,28 @@ export function crossPackageFolderFromRelativeImport(
 	return targetFolder;
 }
 
-interface WorkspacePackageManifest {
-	readonly name?: string;
-	readonly dependencies?: Readonly<Record<string, string>>;
-	readonly devDependencies?: Readonly<Record<string, string>>;
-	readonly peerDependencies?: Readonly<Record<string, string>>;
-}
+const workspacePackageManifestSchema = z.object({
+	name: z.string().optional(),
+	dependencies: z.record(z.string(), z.string()).optional(),
+	devDependencies: z.record(z.string(), z.string()).optional(),
+	peerDependencies: z.record(z.string(), z.string()).optional(),
+});
+
+type WorkspacePackageManifest = z.infer<typeof workspacePackageManifestSchema>;
 
 function readWorkspaceManifest(manifestPath: string): WorkspacePackageManifest {
 	const text = readFileSync(manifestPath, "utf8");
+<<<<<<< HEAD
 	const parsed: unknown = JSON.parse(text);
 	if (typeof parsed !== "object" || parsed === null || !Object.hasOwn(parsed, "name")) {
 		return {};
 	}
 	// SAFETY: package.json files in packages/ are workspace manifests with optional dependency maps.
 	return parsed as WorkspacePackageManifest;
+=======
+	const parsed = workspacePackageManifestSchema.safeParse(JSON.parse(text));
+	return parsed.success ? parsed.data : {};
+>>>>>>> origin/main
 }
 
 function loadPackageNameByFolder(packagesDir: string): Map<string, string> {
