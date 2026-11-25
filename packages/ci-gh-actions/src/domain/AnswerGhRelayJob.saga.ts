@@ -142,8 +142,11 @@ function confirmProtocolAnswer(
 					),
 		),
 		Effect.mapError((error) => {
+			if (error instanceof GhProtocolRejected) return error;
 			const parsed = decodeGhProtocolRejected(error);
-			if (Option.isSome(parsed)) return parsed.value;
+			if (Option.isSome(parsed)) {
+				return new GhProtocolRejected({ reason: parsed.value.reason });
+			}
 			return new GhProtocolRejected({
 				reason: NonEmptyReason.make(
 					error instanceof Error ? error.message : String(error),
