@@ -2,6 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { Activity, Workflow } from "effect/workflow";
 import {
@@ -120,14 +121,7 @@ type ProtocolAnswerInput = {
 	readonly annotations: readonly NonEmptyReason[];
 };
 
-function isGhProtocolRejected(error: unknown): error is GhProtocolRejected {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		"_tag" in error &&
-		error._tag === "GhProtocolRejected"
-	);
-}
+const decodeGhProtocolRejected = Schema.decodeUnknownOption(GhProtocolRejected);
 
 function confirmProtocolAnswer(
 	answerJob: (
@@ -147,15 +141,15 @@ function confirmProtocolAnswer(
 						}),
 					),
 		),
-		Effect.mapError((error) =>
-			isGhProtocolRejected(error)
-				? error
-				: new GhProtocolRejected({
-						reason: NonEmptyReason.make(
-							error instanceof Error ? error.message : String(error),
-						),
-					}),
-		),
+		Effect.mapError((error) => {
+			const parsed = decodeGhProtocolRejected(error);
+			if (Option.isSome(parsed)) return parsed.value;
+			return new GhProtocolRejected({
+				reason: NonEmptyReason.make(
+					error instanceof Error ? error.message : String(error),
+				),
+			});
+		}),
 	);
 }
 
