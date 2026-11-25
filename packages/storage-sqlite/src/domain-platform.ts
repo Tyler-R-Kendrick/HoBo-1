@@ -40,6 +40,7 @@ import {
 	DomainPersistenceError,
 	type DomainScheduleStore,
 	initSqliteDomainDurableTables,
+	asInMemoryWorkflowHost,
 	makeDomainOutbox,
 	makeDomainScheduleStore,
 	makeSqliteBackedWorkflowEngine,
@@ -303,7 +304,7 @@ export function createSqliteDomainPlatform(
 		"__hobo_platform__",
 		driver,
 		workflowHostBase,
-		(host) => InMemoryWorkflows.make(host),
+		(host) => InMemoryWorkflows.make(asInMemoryWorkflowHost(host)),
 	);
 
 	function inTransaction<A>(fn: () => A): A {

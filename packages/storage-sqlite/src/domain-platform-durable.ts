@@ -1,3 +1,4 @@
+import type { Host as InMemoryWorkflowHost } from "@alchemy.run/domain/InMemoryWorkflows";
 import type { Delivery } from "@alchemy.run/domain/Platform";
 import * as Effect from "effect/Effect";
 import type * as Semaphore from "effect/Semaphore";
@@ -56,6 +57,50 @@ export class DomainPersistenceError extends Error {
 		super(`SQLite persist refused (${context}, changes=${changes})`);
 		this.name = "DomainPersistenceError";
 	}
+}
+
+export type WorkflowDiedDefect = {
+	readonly message: string;
+	readonly raw: unknown;
+};
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SAFETY: workflow engine defects arrive as untrusted catch values; this parser is the I/O boundary.
+export function parseWorkflowDiedDefect(defect: unknown): WorkflowDiedDefect {
+	if (defect instanceof Error) {
+		return { message: defect.message, raw: defect };
+	}
+	// oxlint-disable-next-line anti-slop/no-runtime-typeof -- SAFETY: string defects are valid at this boundary before any domain logic runs.
+	if (typeof defect === "string") {
+		return { message: defect, raw: defect };
+	}
+	return { message: String(defect), raw: defect };
+}
+
+export function asInMemoryWorkflowHost(
+	host: SqliteWorkflowHost,
+): InMemoryWorkflowHost {
+	// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SAFETY: InMemoryWorkflows Host passes untrusted defects; parseWorkflowDiedDefect runs at this adapter boundary.
+	const died = (workflow: string, executionId: string, defect: unknown) =>
+		host.died(workflow, executionId, parseWorkflowDiedDefect(defect));
+	if (host.turn !== undefined) {
+		return {
+			now: host.now,
+			enqueue: host.enqueue,
+			turn: host.turn,
+			acquire: host.acquire,
+			timer: host.timer,
+			failed: host.failed,
+			died,
+		};
+	}
+	return {
+		now: host.now,
+		enqueue: host.enqueue,
+		acquire: host.acquire,
+		timer: host.timer,
+		failed: host.failed,
+		died,
+	};
 }
 
 export function assertSqlitePersisted(
@@ -289,7 +334,7 @@ export interface SqliteWorkflowHost {
 	readonly died: (
 		workflow: string,
 		executionId: string,
-		defect: unknown,
+		defect: WorkflowDiedDefect,
 	) => void;
 }
 
