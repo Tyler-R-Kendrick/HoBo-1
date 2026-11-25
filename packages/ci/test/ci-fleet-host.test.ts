@@ -269,7 +269,7 @@ describe("@hobo/ci/host portable hosting (InMemory, HTTP, SQLite, Rivet)", () =>
 						jobId: JobDispatchId.make("job-rivet-bad-micros"),
 						poolId: LOCAL_POOL.poolId,
 						tier: "local",
-						reservedMicros: -1,
+						reservedMicros: -1 as unknown as typeof NonNegativeMicros.Type,
 						ttlMs: 1_000,
 					}),
 				).rejects.toThrow();
