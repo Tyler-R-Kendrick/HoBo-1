@@ -28,7 +28,10 @@ function packageFolderFromPath(
 	const rel = relative(packagesDir, absolutePath);
 	if (rel.startsWith("..")) return null;
 	const folder = rel.split(/[/\\]/u)[0];
-	return folder === "" ? null : folder;
+	if (folder === undefined || folder === "") {
+		return null;
+	}
+	return folder;
 }
 
 export function crossPackageFolderFromRelativeImport(
@@ -55,7 +58,7 @@ interface WorkspacePackageManifest {
 function readWorkspaceManifest(manifestPath: string): WorkspacePackageManifest {
 	const text = readFileSync(manifestPath, "utf8");
 	const parsed: unknown = JSON.parse(text);
-	if (parsed === null || !Object.hasOwn(parsed, "name")) {
+	if (typeof parsed !== "object" || parsed === null || !Object.hasOwn(parsed, "name")) {
 		return {};
 	}
 	// SAFETY: package.json files in packages/ are workspace manifests with optional dependency maps.
