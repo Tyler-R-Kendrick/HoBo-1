@@ -214,6 +214,7 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
@@ -400,6 +401,7 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId: rollbackRouteId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
@@ -497,6 +499,7 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId: reconcileRouteId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.fail(
 					TrafficRoutingBackend.lowerTtl,
@@ -598,6 +601,7 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
@@ -696,7 +700,11 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						previousTtlSeconds: TTL_300,
 					}),
 				),
-				Story.call(TrafficRoutingBackend.lowerTtl, { routeId, ttlSeconds: TTL_30 }),
+				Story.call(TrafficRoutingBackend.lowerTtl, {
+					routeId,
+					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
+				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
 					waitedSeconds: 300,
@@ -898,7 +906,11 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						nowMs: decodeEpochMs(10_000),
 					}),
 				),
-				Story.call(TrafficRoutingBackend.lowerTtl, { routeId, ttlSeconds: TTL_30 }),
+				Story.call(TrafficRoutingBackend.lowerTtl, {
+					routeId,
+					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
+				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
 					waitedSeconds: 300,

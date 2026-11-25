@@ -126,7 +126,7 @@ export class TrafficRoutingView extends Domain.View("TrafficRoutingView", {
 				_tag: "TtlLowering" as const,
 				incumbent: state.incumbent,
 				challenger: event.to,
-				ttlSeconds: event.restoredTtlSeconds,
+				ttlSeconds: state.ttlSeconds,
 				swapsCompleted: state.swapsCompleted,
 			};
 		},
@@ -153,7 +153,7 @@ export class TrafficRoutingView extends Domain.View("TrafficRoutingView", {
 				incumbent: state.incumbent,
 				challenger: state.challenger,
 				targetWeightPercent: event.targetWeightPercent,
-				ttlSeconds: event.restoredTtlSeconds,
+				ttlSeconds: state.ttlSeconds,
 				swapsCompleted: state.swapsCompleted,
 			};
 		},

@@ -128,7 +128,7 @@ function confirmProtocolAnswer(
 		input: ProtocolAnswerInput,
 	) => Effect.Effect<{ readonly accepted: boolean }, unknown>,
 	input: ProtocolAnswerInput,
-): Effect.Effect<void, GhProtocolRejected> {
+): Effect.Effect<void, typeof GhProtocolRejected.Type> {
 	return answerJob(input).pipe(
 		Effect.flatMap((reply) =>
 			reply.accepted
