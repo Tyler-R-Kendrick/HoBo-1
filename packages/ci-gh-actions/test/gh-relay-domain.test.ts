@@ -56,6 +56,7 @@ import {
 	GhRetryLimitReached,
 	GhRouteDecisionRecorded,
 	GhRunnerLabel,
+	type GhRunnerOrderConfig,
 	GhRunnerOrderConfigured,
 	GhRunnerProtocol,
 	GhStaleAdvertKey,
@@ -69,7 +70,6 @@ import {
 	PercentLimit,
 	PositiveRunId,
 	PositiveSlots,
-	parseGhAutoSize,
 	parseGhRelayInputs,
 	parseGhRunsOn,
 	QueueGhRelayJob,
@@ -1287,13 +1287,13 @@ describe("@hobo/ci-gh-actions/domain GhRelay Alchemy Domain model", () => {
 				},
 			],
 			skipUnhealthy: true,
-			autoSizeVcpus: parseGhAutoSize(2),
+			autoSizeVcpus: 2,
 			retry: {
 				enabled: false,
 				target: "other" as const,
 				maxRetries: 1 as const,
 			},
-		};
+		} satisfies GhRunnerOrderConfig;
 		const machineSnapshot = (busy: number) => ({
 			machineId,
 			name: "studio",
