@@ -67,6 +67,7 @@ export {
 	RecordRampStep,
 	RecordTtlLowered,
 	RegisterTrafficIncumbent,
+	ResolveTrafficCutoverReconciliation,
 	RollbackTrafficCutover,
 	RolledBackRouteState,
 	SteadyRouteState,

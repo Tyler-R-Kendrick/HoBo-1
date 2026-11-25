@@ -1,11 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+	buildCiNeutralImportAllowlist,
+	hostLayerEscapeSpecifier,
+	neutralCiCrossPackageImportViolation,
+} from "../../../scripts/lib/ci-neutral-import-boundary.mts";
 import { importSpecifiersOf } from "../../../scripts/lib/test-import-specifiers.mts";
 
 const PACKAGES_DIR = resolve(import.meta.dirname, "../..");
-
-const HOST_LAYER_ESCAPE = /\.\.\/host(?:\/|$)/u;
+const REPO_ROOT = resolve(PACKAGES_DIR, "..");
 
 function collectTypeScriptFiles(dir: string): string[] {
 	const results: string[] = [];
@@ -118,7 +122,7 @@ describe("GitHub isolation boundary for non-GitHub CI packages", () => {
 		for (const file of neutralCore) {
 			const content = readFileSync(file, "utf8");
 			for (const entry of importSpecifiersOf(content, file)) {
-				if (HOST_LAYER_ESCAPE.test(entry.specifier.replaceAll("\\", "/"))) {
+				if (hostLayerEscapeSpecifier(entry.specifier)) {
 					violations.push(
 						`${file} escapes into the host layer via "${entry.specifier}"`,
 					);
@@ -128,7 +132,45 @@ describe("GitHub isolation boundary for non-GitHub CI packages", () => {
 		expect(violations).toEqual([]);
 	});
 
-	it("keeps non-GitHub CI packages (ci-ado, ci-cf, ci-dagger) isolated from @hobo/ci-gh-actions and GitHub Actions runner logic", () => {
+	it("flags host-layer and cross-package ci-gh-actions import escapes after normalization", () => {
+		expect(hostLayerEscapeSpecifier("../host/rivet.js")).toBe(true);
+		expect(hostLayerEscapeSpecifier(".././host/rivet.js")).toBe(true);
+		expect(hostLayerEscapeSpecifier("../../ci-gh-actions/src/foo.js")).toBe(
+			true,
+		);
+		expect(hostLayerEscapeSpecifier("../domain/ids.js")).toBe(false);
+	});
+
+	it("keeps @hobo/ci neutral domain imports inside the declared workspace dependency closure", () => {
+		const allowlist = buildCiNeutralImportAllowlist(REPO_ROOT);
+		expect(allowlist.has("@hobo/core")).toBe(true);
+		expect(allowlist.has("@hobo/broker")).toBe(true);
+		expect(allowlist.has("@hobo/ci-gh-actions")).toBe(false);
+
+		const neutralCore = [
+			join(PACKAGES_DIR, "ci/src/app.ts"),
+			...collectTypeScriptFiles(join(PACKAGES_DIR, "ci/src/domain")),
+			...collectTypeScriptFiles(join(PACKAGES_DIR, "ci/src/cluster")),
+		];
+		const violations: string[] = [];
+		for (const file of neutralCore) {
+			const content = readFileSync(file, "utf8");
+			for (const entry of importSpecifiersOf(content, file)) {
+				const violation = neutralCiCrossPackageImportViolation(
+					file,
+					entry.specifier,
+					REPO_ROOT,
+					allowlist,
+				);
+				if (violation !== null) {
+					violations.push(`${file}: ${violation}`);
+				}
+			}
+		}
+		expect(violations).toEqual([]);
+	});
+
+it("keeps non-GitHub CI packages (ci-ado, ci-cf, ci-dagger) isolated from @hobo/ci-gh-actions and GitHub Actions runner logic", () => {
 		const packages = ["ci-ado", "ci-cf", "ci-dagger"] as const;
 		const violations: string[] = [];
 

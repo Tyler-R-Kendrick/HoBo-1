@@ -10,6 +10,7 @@ export {
 	DispatchAccount,
 	DispatchAccountConfigured,
 	DispatchAccountState,
+	DispatchOverrunReconciliationRequired,
 	DispatchReservationConfirmed,
 	DispatchReservationReleased,
 	DispatchReservationStarted,
@@ -28,11 +29,11 @@ export {
 	ReservationNotStartable,
 	ReserveDispatch,
 	RunningReservation,
+	SettlementExceedsHold,
 	StartReservation,
 	UnconfiguredDispatchAccount,
 	UnknownReservation,
 	UsageEvidenceRequired,
-	SettlementExceedsHold,
 } from "./DispatchAccount.aggregate.js";
 export {
 	ActiveReservationHold,

@@ -1,17 +1,21 @@
 export {
 	BudgetAccount,
+	BudgetAccountNotConfigured,
 	BudgetAlertThresholdCrossed,
 	BudgetAlertThresholdRecovered,
+	BudgetCeilingBelowLiabilities,
 	BudgetCeilingConfigured,
 	BudgetHoldMarkedUncertain,
 	BudgetHoldReserved,
 	BudgetHoldSettled,
 	BudgetLimitExceeded,
+	BudgetNegativeAmountRejected,
 	ConfigureBudgetAccount,
 	DuplicateBudgetHold,
 	MarkBudgetHoldUncertain,
 	ReserveBudgetHold,
 	SettleBudgetHold,
+	UncertainBudgetHoldNotSettleable,
 	UnknownBudgetHold,
 } from "./BudgetAccount.aggregate.js";
 export {
@@ -30,8 +34,8 @@ export {
 export {
 	AuthorizeProviderConnection,
 	ConnectionAlreadyRevoked,
-	ConnectionRebindRefused,
 	ConnectionNotAuthorized,
+	ConnectionRebindRefused,
 	ProviderConnection,
 	ProviderConnectionAuthorized,
 	ProviderConnectionRevoked,
