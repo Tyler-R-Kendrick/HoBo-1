@@ -57,17 +57,8 @@ type WorkspacePackageManifest = z.infer<typeof workspacePackageManifestSchema>;
 
 function readWorkspaceManifest(manifestPath: string): WorkspacePackageManifest {
 	const text = readFileSync(manifestPath, "utf8");
-<<<<<<< HEAD
-	const parsed: unknown = JSON.parse(text);
-	if (typeof parsed !== "object" || parsed === null || !Object.hasOwn(parsed, "name")) {
-		return {};
-	}
-	// SAFETY: package.json files in packages/ are workspace manifests with optional dependency maps.
-	return parsed as WorkspacePackageManifest;
-=======
 	const parsed = workspacePackageManifestSchema.safeParse(JSON.parse(text));
 	return parsed.success ? parsed.data : {};
->>>>>>> origin/main
 }
 
 function loadPackageNameByFolder(packagesDir: string): Map<string, string> {
