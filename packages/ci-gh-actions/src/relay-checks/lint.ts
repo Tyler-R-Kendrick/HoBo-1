@@ -245,14 +245,19 @@ type JsonValue =
 	| { readonly [key: string]: JsonValue };
 
 function jsonObject(
-	value: JsonValue,
+	value: JsonValue | undefined,
 ): { readonly [key: string]: JsonValue } | undefined {
-	if (value === null || Array.isArray(value)) return undefined;
+	if (value === undefined || value === null || Array.isArray(value))
+		return undefined;
 	if (Object.getPrototypeOf(value) !== Object.prototype) return undefined;
-	return value;
+	// SAFETY: Null, arrays, and non-plain objects are rejected above.
+	return value as { readonly [key: string]: JsonValue };
 }
 
-function jsonArray(value: JsonValue): readonly JsonValue[] | undefined {
+function jsonArray(
+	value: JsonValue | undefined,
+): readonly JsonValue[] | undefined {
+	if (value === undefined) return undefined;
 	return Array.isArray(value) ? value : undefined;
 }
 
