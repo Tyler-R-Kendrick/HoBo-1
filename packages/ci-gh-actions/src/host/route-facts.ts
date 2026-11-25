@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { RunnerRouteRequestSchema } from "@hobo/ci";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
+import type * as Layer from "effect/Layer";
 import { GhRelayRouteFacts } from "../domain/index.js";
 import {
 	StoreRouteFacts,
@@ -44,11 +44,12 @@ export const createGhRelayRouteFactsFromStore = (
 					const loaded = yield* Effect.promise(() =>
 						store.facts(routeRequest, nowMs),
 					);
+					const readers = deps.readers;
 					const readersSayOwner =
-						deps.readers === undefined
+						readers === undefined
 							? false
 							: yield* Effect.promise(() =>
-									deps.readers!(args.repository).then((set) =>
+									readers(args.repository).then((set) =>
 										set.has(String(args.actorId)),
 									),
 								);
