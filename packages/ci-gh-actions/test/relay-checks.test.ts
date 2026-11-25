@@ -5,8 +5,8 @@ import {
 	type RelayJobStep,
 } from "@hobo/ci";
 import { describe, expect, it } from "vitest";
-import type { GithubTransport } from "../src/github.js";
 import { GH_DEFAULT_LINT_TOOLS, GH_LINT_TOOLS } from "../src/domain/ids.js";
+import type { GithubTransport } from "../src/github.js";
 import {
 	createRelayAnswerer,
 	RELAY_CONFIG_PATH,
