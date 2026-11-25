@@ -128,7 +128,7 @@ function confirmProtocolAnswer(
 		input: ProtocolAnswerInput,
 	) => Effect.Effect<{ readonly accepted: boolean }, unknown>,
 	input: ProtocolAnswerInput,
-): Effect.Effect<void, typeof GhProtocolRejected.Type> {
+): Effect.Effect<void, GhProtocolRejected> {
 	return answerJob(input).pipe(
 		Effect.flatMap((reply) =>
 			reply.accepted
@@ -142,8 +142,11 @@ function confirmProtocolAnswer(
 					),
 		),
 		Effect.mapError((error) => {
+			if (error instanceof GhProtocolRejected) return error;
 			const parsed = decodeGhProtocolRejected(error);
-			if (Option.isSome(parsed)) return parsed.value;
+			if (Option.isSome(parsed)) {
+				return new GhProtocolRejected({ reason: parsed.value.reason });
+			}
 			return new GhProtocolRejected({
 				reason: NonEmptyReason.make(
 					error instanceof Error ? error.message : String(error),
@@ -454,6 +457,43 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 						"reread-machine-pool-after-acquire-race",
 					);
 					if (
+						reread.outcome === "routed" &&
+						reread.step !== null &&
+						reread.runnerLabel !== null
+					) {
+						yield* Activity.make({
+							name: "answer-routed-after-acquire-race",
+							success: Schema.Void,
+							error: GhProtocolRejected,
+							execute: confirmProtocolAnswer(protocol.answerJob, {
+								accountId: context.accountId,
+								repository: context.repository,
+								jobId: key,
+								conclusion: "succeeded",
+								runnerLabel: reread.runnerLabel,
+								annotations: [reread.reason],
+							}),
+						});
+						yield* Activity.make({
+							name: "record-routed-after-acquire-race",
+							success: Schema.Void,
+							error: GhJobNotClaimed,
+							execute: jobs
+								.send(
+									key,
+									new RecordGhRelayRouted({
+										step: reread.step,
+										runnerLabel: reread.runnerLabel,
+										machineId: reread.machineId ?? machineId,
+										skipped: reread.skipped,
+										notInOrder: reread.notInOrder,
+									}),
+								)
+								.pipe(Effect.asVoid),
+						});
+						return;
+					}
+					if (
 						reread.outcome !== "waiting" ||
 						reread.step === null ||
 						reread.runnerLabel === null
@@ -497,7 +537,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 				name: "answer-routed-protocol",
 				success: Schema.Void,
 				error: GhProtocolRejected,
-						execute: confirmProtocolAnswer(protocol.answerJob, {
+				execute: confirmProtocolAnswer(protocol.answerJob, {
 					accountId: context.accountId,
 					repository: context.repository,
 					jobId: key,

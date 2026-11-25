@@ -545,8 +545,7 @@ export class GhMachinePool extends Domain.Aggregate("GhMachinePool", {
 				(entry) => entry.activeJobIds.length > 0,
 			);
 			return {
-				runsOnLabel:
-					holding?.runsOnLabel ?? GhRunnerLabel.make("hobo-machine"),
+				runsOnLabel: holding?.runsOnLabel ?? GhRunnerLabel.make("hobo-machine"),
 			};
 		},
 	},

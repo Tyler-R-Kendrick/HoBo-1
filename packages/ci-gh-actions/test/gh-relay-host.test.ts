@@ -318,6 +318,11 @@ describe("@hobo/ci-gh-actions/host portable hosting (InMemory, HTTP, SQLite, Riv
 			expect(answered?.status).toBe("answered");
 			expect(answered?.chosenRunner).toBe("depot-ubuntu-24.04");
 
+			const earlyRescue = await conn.rescueStaleJob(
+				GhRelayJobId.make("gh-job-1"),
+			);
+			expect(earlyRescue.rescued).toBe(false);
+
 			await conn.enqueueJob({
 				jobId: GhRelayJobId.make("gh-job-stale"),
 				repository: REPO,
@@ -346,4 +351,36 @@ describe("@hobo/ci-gh-actions/host portable hosting (InMemory, HTTP, SQLite, Riv
 			await engine.stop();
 		}
 	}, 25_000);
+
+	it("rejects unvalidated pick-runner enqueue input at the Rivet boundary", async (testCtx) => {
+		const engine = await startLocalRivetTestEngine();
+		try {
+			const registry = createGhPickRunnerRegistry({
+				endpoint: engine.endpoint,
+				token: engine.token,
+				httpHost: engine.httpHost,
+				httpPort: engine.httpPort,
+				startEngine: false,
+				noWelcome: true,
+				shutdown: {
+					gracePeriodMs: 2_000,
+					disableSignalHandlers: true,
+				},
+			});
+			const { client } = await setupTest(testCtx, registry);
+			const conn = client.ghPickRunner.getOrCreate(["acct-rivet-invalid"]).connect();
+			await expect(
+				// SAFETY: assertion to `as never` is required at this boundary to exercise Rivet schema rejection.
+				conn.enqueueJob({
+					jobId: "",
+					repository: "not-a-repo-slug",
+					runsOn: GhRunnerLabel.make("hobo"),
+					rescueAfterMs: 10,
+				} as never),
+			).rejects.toThrow();
+			await conn.dispose();
+		} finally {
+			await engine.stop();
+		}
+	});
 });
