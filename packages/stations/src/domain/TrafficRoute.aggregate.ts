@@ -574,9 +574,15 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 			swapsInWindow:
 				state._tag === "Unregistered" ? ZERO_COUNT : state.swapsInWindow,
 			flipWindowStartMs:
-				state._tag === "Unregistered" ? null : state.flipWindowStartMs,
+				state._tag === "Unregistered" ||
+				state._tag === "ReconciliationRequired"
+					? null
+					: state.flipWindowStartMs,
 			lastCompletedAtMs:
-				state._tag === "Unregistered" ? null : state.lastCompletedAtMs,
+				state._tag === "Unregistered" ||
+				state._tag === "ReconciliationRequired"
+					? null
+					: state.lastCompletedAtMs,
 		}),
 		BudgetMigrationProposed: (state, event) => {
 			if (state._tag !== "Steady" && state._tag !== "RolledBack") {
