@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { importSpecifiersOf } from "../../../scripts/lib/test-import-specifiers.mts";
@@ -71,9 +71,7 @@ const FORBIDDEN_IN_NEUTRAL_CI_CORE = [
 	"ciGithubAppBindle",
 ] as const;
 
-const FORBIDDEN_IMPORTS_IN_NEUTRAL_CI_CORE = [
-	"@hobo/ci-gh-actions",
-] as const;
+const FORBIDDEN_IMPORTS_IN_NEUTRAL_CI_CORE = ["@hobo/ci-gh-actions"] as const;
 
 const FORBIDDEN_IN_UNRELATED_CI_PACKAGES = [
 	"@hobo/ci-gh-actions",
