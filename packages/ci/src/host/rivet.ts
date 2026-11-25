@@ -7,12 +7,16 @@ import { db } from "rivetkit/db";
 import {
 	CiFleet,
 	CiFleetHandlers,
-	type JobDispatchId,
-	type NonNegativeMicros,
+	JobDispatchId,
+	type JobDispatchId as JobDispatchIdType,
+	NonNegativeMicros,
+	type NonNegativeMicros as NonNegativeMicrosType,
+	RunnerPoolId,
 	type RunnerBackend,
-	type RunnerPoolId,
+	type RunnerPoolId as RunnerPoolIdType,
 	type RunnerTier,
-	type SlotId,
+	SlotId,
+	type SlotId as SlotIdType,
 } from "../domain/index.js";
 
 export type RunnerBackendService = Layer.Success<
@@ -80,18 +84,46 @@ export interface CiStationLeaseEvent {
 }
 
 export interface AcquireCiLeaseInput {
-	readonly slotId: SlotId;
-	readonly jobId: JobDispatchId;
-	readonly poolId: RunnerPoolId;
+	readonly slotId: SlotIdType;
+	readonly jobId: JobDispatchIdType;
+	readonly poolId: RunnerPoolIdType;
 	readonly tier: RunnerTier;
-	readonly reservedMicros: NonNegativeMicros;
+	readonly reservedMicros: NonNegativeMicrosType;
 	readonly ttlMs: number;
 }
 
+const AcquireCiLeaseInputSchema = Schema.Struct({
+	slotId: SlotId,
+	jobId: JobDispatchId,
+	poolId: RunnerPoolId,
+	tier: Schema.Literals([
+		"local",
+		"hostinger",
+		"agent37",
+		"boat",
+		"hosted",
+	]),
+	reservedMicros: NonNegativeMicros,
+	ttlMs: Schema.Int,
+});
+
+const decodeAcquireCiLeaseInput = Schema.decodeUnknownSync(
+	AcquireCiLeaseInputSchema,
+);
+
 export interface CompleteCiLeaseInput {
-	readonly slotId: SlotId;
-	readonly settledMicros: NonNegativeMicros;
+	readonly slotId: SlotIdType;
+	readonly settledMicros: NonNegativeMicrosType;
 }
+
+const CompleteCiLeaseInputSchema = Schema.Struct({
+	slotId: SlotId,
+	settledMicros: NonNegativeMicros,
+});
+
+const decodeCompleteCiLeaseInput = Schema.decodeUnknownSync(
+	CompleteCiLeaseInputSchema,
+);
 
 function toLeaseRecord(row: typeof LeaseRowSchema.Type): CiStationLeaseRecord {
 	return {
@@ -144,8 +176,9 @@ export function createCiStationLeaseRegistry(
 		actions: {
 			acquireLease: async (
 				c,
-				input: AcquireCiLeaseInput,
+				rawInput: unknown,
 			): Promise<CiStationLeaseRecord> => {
+				const input = decodeAcquireCiLeaseInput(rawInput);
 				const existingRows = decodeLeaseRows(
 					await c.db.execute(
 						"SELECT slot_id, job_id, pool_id, tier, reserved_micros, status, settled_micros, created_at_ms, expires_at_ms FROM ci_station_leases WHERE job_id = ?",
@@ -189,8 +222,9 @@ export function createCiStationLeaseRegistry(
 			},
 			completeLease: async (
 				c,
-				input: CompleteCiLeaseInput,
+				rawInput: unknown,
 			): Promise<CiStationLeaseRecord | null> => {
+				const input = decodeCompleteCiLeaseInput(rawInput);
 				const rows = decodeLeaseRows(
 					await c.db.execute(
 						"SELECT slot_id, job_id, pool_id, tier, reserved_micros, status, settled_micros, created_at_ms, expires_at_ms FROM ci_station_leases WHERE slot_id = ?",
@@ -226,6 +260,9 @@ export function createCiStationLeaseRegistry(
 				);
 				const existing = rows[0];
 				if (existing === undefined || existing.status !== "active") {
+					return { expired: false, slotId };
+				}
+				if (Date.now() < existing.expires_at_ms) {
 					return { expired: false, slotId };
 				}
 				await c.db.execute(
