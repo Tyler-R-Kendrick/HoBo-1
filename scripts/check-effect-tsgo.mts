@@ -123,13 +123,7 @@ function buildWorkspaceDepsForTargets(
 	rootDir: string,
 	targets: readonly EffectTsgoTarget[],
 ): number {
-	const args = [
-		"exec",
-		"turbo",
-		"run",
-		"build",
-		"--output-logs=errors-only",
-	];
+	const args = ["exec", "turbo", "run", "build", "--output-logs=errors-only"];
 	for (const target of targets) {
 		args.push(`--filter=./${target.packageDir}^...`);
 	}
