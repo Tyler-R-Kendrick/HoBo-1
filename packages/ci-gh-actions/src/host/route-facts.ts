@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
-import type * as Layer from "effect/Layer";
+import * as Layer from "effect/Layer";
 import { GhRelayRouteFacts } from "../domain/index.js";
 
-export type GhRelayRouteFactsService = Layer.Layer.Success<
+export type GhRelayRouteFactsService = Layer.Success<
 	ReturnType<typeof GhRelayRouteFacts.toLayer>
 >;
 

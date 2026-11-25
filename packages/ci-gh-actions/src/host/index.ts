@@ -43,7 +43,7 @@ export function createGhRelayInMemoryLayer<
 		SandboxErr,
 		SandboxReq
 	>;
-	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService, never, never>;
+	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 }) {
 	return GhRelay.layer(GhRelayHandlers).pipe(
 		Layer.provide(
@@ -75,7 +75,7 @@ export function createGhRelaySqliteLayer<
 			SandboxErr,
 			SandboxReq
 		>;
-		readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService, never, never>;
+		readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 	},
 	options?: SqliteDomainPlatformOptions,
 ) {

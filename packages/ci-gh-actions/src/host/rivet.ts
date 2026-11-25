@@ -47,7 +47,7 @@ export interface GhRelayRivetHostOptions<
 		SandboxErr,
 		SandboxReq
 	>;
-	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService, never, never>;
+	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 }
 
 export function createGhRelayRivetLayer<

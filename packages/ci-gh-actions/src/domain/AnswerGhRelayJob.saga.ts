@@ -120,11 +120,22 @@ type ProtocolAnswerInput = {
 	readonly annotations: readonly NonEmptyReason[];
 };
 
+function isGhProtocolRejected(error: unknown): error is GhProtocolRejected {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"_tag" in error &&
+		error._tag === "GhProtocolRejected"
+	);
+}
+
 function confirmProtocolAnswer(
-	protocol: Effect.Effect.Success<typeof GhRunnerProtocol>,
+	answerJob: (
+		input: ProtocolAnswerInput,
+	) => Effect.Effect<{ readonly accepted: boolean }, unknown>,
 	input: ProtocolAnswerInput,
 ): Effect.Effect<void, GhProtocolRejected> {
-	return protocol.answerJob(input).pipe(
+	return answerJob(input).pipe(
 		Effect.flatMap((reply) =>
 			reply.accepted
 				? Effect.void
@@ -135,6 +146,15 @@ function confirmProtocolAnswer(
 							),
 						}),
 					),
+		),
+		Effect.mapError((error) =>
+			isGhProtocolRejected(error)
+				? error
+				: new GhProtocolRejected({
+						reason: NonEmptyReason.make(
+							error instanceof Error ? error.message : String(error),
+						),
+					}),
 		),
 	);
 }
@@ -253,7 +273,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 					name: "answer-check-protocol",
 					success: Schema.Void,
 					error: GhProtocolRejected,
-					execute: confirmProtocolAnswer(protocol, {
+					execute: confirmProtocolAnswer(protocol.answerJob, {
 						accountId: context.accountId,
 						repository: context.repository,
 						jobId: key,
@@ -333,7 +353,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 					name: "answer-failed-route",
 					success: Schema.Void,
 					error: GhProtocolRejected,
-					execute: confirmProtocolAnswer(protocol, {
+					execute: confirmProtocolAnswer(protocol.answerJob, {
 						accountId: context.accountId,
 						repository: context.repository,
 						jobId: key,
@@ -362,7 +382,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 					name: "answer-waiting-route",
 					success: Schema.Void,
 					error: GhProtocolRejected,
-					execute: confirmProtocolAnswer(protocol, {
+					execute: confirmProtocolAnswer(protocol.answerJob, {
 						accountId: context.accountId,
 						repository: context.repository,
 						jobId: key,
@@ -428,7 +448,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 
 				const acquireExit = yield* acquireActivity.pipe(Effect.exit);
 				if (Exit.isFailure(acquireExit)) {
-					const rejected = Cause.failureOption(acquireExit.cause);
+					const rejected = Cause.findErrorOption(acquireExit.cause);
 					if (
 						rejected._tag !== "Some" ||
 						rejected.value._tag !== "GhMachineSlotUnavailable" ||
@@ -450,7 +470,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 						name: "answer-waiting-after-acquire-race",
 						success: Schema.Void,
 						error: GhProtocolRejected,
-						execute: confirmProtocolAnswer(protocol, {
+						execute: confirmProtocolAnswer(protocol.answerJob, {
 							accountId: context.accountId,
 							repository: context.repository,
 							jobId: key,
@@ -483,7 +503,7 @@ export const AnswerGhRelayJobLive = AnswerGhRelayJob.toLayer(
 				name: "answer-routed-protocol",
 				success: Schema.Void,
 				error: GhProtocolRejected,
-				execute: confirmProtocolAnswer(protocol, {
+						execute: confirmProtocolAnswer(protocol.answerJob, {
 					accountId: context.accountId,
 					repository: context.repository,
 					jobId: key,
