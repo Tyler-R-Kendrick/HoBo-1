@@ -234,7 +234,11 @@ export class StartReservation extends Domain.Command(
 			reservationId: ReservationId,
 		},
 		events: [DispatchReservationStarted],
-		rejects: [AccountNotConfigured, UnknownReservation, ReservationNotStartable],
+		rejects: [
+			AccountNotConfigured,
+			UnknownReservation,
+			ReservationNotStartable,
+		],
 	},
 	{
 		description:
@@ -655,7 +659,8 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 			rateHeadroom: event.rateHeadroom,
 			concurrencyHeadroom: event.concurrencyHeadroom,
 			budgetCapMicros: event.budgetCapMicros,
-			spentMicros: state._tag === "Configured" ? state.spentMicros : ZERO_MICROS,
+			spentMicros:
+				state._tag === "Configured" ? state.spentMicros : ZERO_MICROS,
 			heldMicros: state._tag === "Configured" ? state.heldMicros : ZERO_MICROS,
 			overrunSeen: state._tag === "Configured" ? state.overrunSeen : false,
 			reservations: state._tag === "Configured" ? state.reservations : [],
@@ -688,7 +693,8 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 			return {
 				...state,
 				reservations: state.reservations.map((entry) =>
-					entry.reservationId === event.reservationId && entry._tag === "Pending"
+					entry.reservationId === event.reservationId &&
+					entry._tag === "Pending"
 						? {
 								_tag: "Running" as const,
 								reservationId: entry.reservationId,

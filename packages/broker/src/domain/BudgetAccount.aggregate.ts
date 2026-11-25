@@ -110,7 +110,10 @@ export class ConfigureBudgetAccount extends Domain.Command(
 			BudgetNegativeAmountRejected,
 		],
 	},
-	{ description: "Configure spend ceiling and alert threshold for a broker budget account." },
+	{
+		description:
+			"Configure spend ceiling and alert threshold for a broker budget account.",
+	},
 ) {}
 
 export class ReserveBudgetHold extends Domain.Command(
@@ -130,7 +133,10 @@ export class ReserveBudgetHold extends Domain.Command(
 			BudgetNegativeAmountRejected,
 		],
 	},
-	{ description: "Atomically reserve a budget hold within ceiling and emit threshold crossing when applicable." },
+	{
+		description:
+			"Atomically reserve a budget hold within ceiling and emit threshold crossing when applicable.",
+	},
 ) {}
 
 export class SettleBudgetHold extends Domain.Command(
@@ -142,9 +148,16 @@ export class SettleBudgetHold extends Domain.Command(
 			settledMicros: Schema.Int,
 		},
 		events: [BudgetHoldSettled, BudgetAlertThresholdRecovered],
-		rejects: [UnknownBudgetHold, UncertainBudgetHoldNotSettleable],
+		rejects: [
+			UnknownBudgetHold,
+			UncertainBudgetHoldNotSettleable,
+			BudgetNegativeAmountRejected,
+		],
 	},
-	{ description: "Settle a budget hold against observed spend and emit threshold recovery if exposure drops." },
+	{
+		description:
+			"Settle a budget hold against observed spend and emit threshold recovery if exposure drops.",
+	},
 ) {}
 
 export class MarkBudgetHoldUncertain extends Domain.Command(
@@ -158,7 +171,10 @@ export class MarkBudgetHoldUncertain extends Domain.Command(
 		events: [BudgetHoldMarkedUncertain],
 		rejects: [UnknownBudgetHold],
 	},
-	{ description: "Retain exposure on an uncertain hold pending external reconciliation." },
+	{
+		description:
+			"Retain exposure on an uncertain hold pending external reconciliation.",
+	},
 ) {}
 
 const ActiveHoldEntry = Schema.Struct({
