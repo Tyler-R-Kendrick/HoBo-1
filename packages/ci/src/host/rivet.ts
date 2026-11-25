@@ -11,8 +11,8 @@ import {
 	type JobDispatchId as JobDispatchIdType,
 	NonNegativeMicros,
 	type NonNegativeMicros as NonNegativeMicrosType,
-	RunnerPoolId,
 	type RunnerBackend,
+	RunnerPoolId,
 	type RunnerPoolId as RunnerPoolIdType,
 	type RunnerTier,
 	SlotId,
@@ -96,13 +96,7 @@ const AcquireCiLeaseInputSchema = Schema.Struct({
 	slotId: SlotId,
 	jobId: JobDispatchId,
 	poolId: RunnerPoolId,
-	tier: Schema.Literals([
-		"local",
-		"hostinger",
-		"agent37",
-		"boat",
-		"hosted",
-	]),
+	tier: Schema.Literals(["local", "hostinger", "agent37", "boat", "hosted"]),
 	reservedMicros: NonNegativeMicros,
 	ttlMs: Schema.Int,
 });
@@ -119,7 +113,9 @@ const CompleteCiLeaseInputSchema = Schema.Struct({
 	settledMicros: NonNegativeMicros,
 });
 
-const decodeCompleteCiLeaseInput = Schema.decodeSync(CompleteCiLeaseInputSchema);
+const decodeCompleteCiLeaseInput = Schema.decodeSync(
+	CompleteCiLeaseInputSchema,
+);
 
 function toLeaseRecord(row: typeof LeaseRowSchema.Type): CiStationLeaseRecord {
 	return {
