@@ -35,6 +35,7 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { WorkflowEngine } from "effect/workflow";
 import {
+	asInMemoryWorkflowHost,
 	assertSqlitePersisted,
 	type DomainOutbox,
 	DomainPersistenceError,
@@ -303,7 +304,7 @@ export function createSqliteDomainPlatform(
 		"__hobo_platform__",
 		driver,
 		workflowHostBase,
-		(host) => InMemoryWorkflows.make(host),
+		(host) => InMemoryWorkflows.make(asInMemoryWorkflowHost(host)),
 	);
 
 	function inTransaction<A>(fn: () => A): A {
