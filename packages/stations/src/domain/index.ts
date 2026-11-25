@@ -57,6 +57,7 @@ export {
 	CutoverPreconditionRefused,
 	CutoverRampAdvanced,
 	CutoverReconciliationRequired,
+	CutoverReconciliationResolved,
 	CutoverRolledBack,
 	CutoverTtlLowered,
 	FlagCutoverReconciliation,

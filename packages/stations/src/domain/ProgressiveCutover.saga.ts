@@ -36,9 +36,11 @@ export class TrafficRoutingBackend extends Domain.ExternalSystem(
 			args: {
 				routeId: TrafficRouteId,
 				ttlSeconds: TtlSeconds,
+				previousTtlSeconds: TtlSeconds,
 			},
 			success: {
 				appliedTtlSeconds: TtlSeconds,
+				waitedSeconds: Schema.Int,
 			},
 			error: [RoutingMutationAmbiguous],
 		},
@@ -86,6 +88,7 @@ export class ExecuteProgressiveCutover extends Domain.Saga(
 			to: CloudBackendTarget,
 			rampPlan: ProgressiveRampPlan,
 			lowTtlSeconds: TtlSeconds,
+			previousTtlSeconds: TtlSeconds,
 			completedAtMs: EpochMs,
 		},
 		rejects: [CutoverNotInProgress, CutoverPreconditionRefused],
@@ -106,15 +109,20 @@ export const ExecuteProgressiveCutoverLive = ExecuteProgressiveCutover.toLayer(
 			to,
 			rampPlan,
 			lowTtlSeconds,
+			previousTtlSeconds,
 			completedAtMs,
 		}) {
 			const lowered = yield* Activity.make({
 				name: "lower-dns-ttl",
-				success: Schema.Struct({ appliedTtlSeconds: TtlSeconds }),
+				success: Schema.Struct({
+					appliedTtlSeconds: TtlSeconds,
+					waitedSeconds: Schema.Int,
+				}),
 				error: RoutingMutationAmbiguous,
 				execute: backend.lowerTtl({
 					routeId: key,
 					ttlSeconds: lowTtlSeconds,
+					previousTtlSeconds,
 				}),
 			}).pipe(Effect.result);
 
@@ -125,6 +133,21 @@ export const ExecuteProgressiveCutoverLive = ExecuteProgressiveCutover.toLayer(
 						.send(
 							key,
 							new FlagCutoverReconciliation({ reason: lowered.failure.reason }),
+						)
+						.pipe(Effect.asVoid),
+				});
+				return;
+			}
+
+			if (lowered.success.waitedSeconds < previousTtlSeconds) {
+				yield* Activity.make({
+					name: "flag-ttl-wait-reconciliation",
+					execute: routes
+						.send(
+							key,
+							new FlagCutoverReconciliation({
+								reason: NonEmptyReason.make("ttl-wait-insufficient"),
+							}),
 						)
 						.pipe(Effect.asVoid),
 				});
@@ -249,7 +272,10 @@ export const ExecuteProgressiveCutoverLive = ExecuteProgressiveCutover.toLayer(
 						execute: routes
 							.send(
 								key,
-								new RollbackTrafficCutover({ reason: health.success.summary }),
+								new RollbackTrafficCutover({
+									reason: health.success.summary,
+									rolledBackAtMs: completedAtMs,
+								}),
 							)
 							.pipe(Effect.asVoid),
 					});

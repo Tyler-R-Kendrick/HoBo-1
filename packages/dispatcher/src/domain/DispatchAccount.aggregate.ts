@@ -100,6 +100,15 @@ export class UsageEvidenceRequired extends Domain.Rejection(
 	},
 ) {}
 
+export class SettlementExceedsHold extends Domain.Rejection(
+	"SettlementExceedsHold",
+	{
+		reservationId: ReservationId,
+		settledMicros: NonNegativeMicros,
+		reservedMicros: NonNegativeMicros,
+	},
+) {}
+
 export class DispatchAccountConfigured extends Domain.Event(
 	"DispatchAccountConfigured",
 	{
@@ -261,6 +270,7 @@ export class ConfirmReservation extends Domain.Command(
 			UnknownReservation,
 			ReservationNotConfirmable,
 			UsageEvidenceRequired,
+			SettlementExceedsHold,
 		],
 	},
 	{
@@ -551,6 +561,16 @@ export class DispatchAccount extends Domain.Aggregate("DispatchAccount", {
 				return new UsageEvidenceRequired({ reservationId: cmd.reservationId });
 			}
 			const { hold } = existing;
+			if (
+				existing._tag === "Pending" &&
+				cmd.settledMicros > hold.reservedMicros
+			) {
+				return new SettlementExceedsHold({
+					reservationId: cmd.reservationId,
+					settledMicros: cmd.settledMicros,
+					reservedMicros: hold.reservedMicros,
+				});
+			}
 			return [
 				new DispatchReservationConfirmed({
 					reservationId: cmd.reservationId,

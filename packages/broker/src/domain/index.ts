@@ -30,6 +30,7 @@ export {
 export {
 	AuthorizeProviderConnection,
 	ConnectionAlreadyRevoked,
+	ConnectionRebindRefused,
 	ConnectionNotAuthorized,
 	ProviderConnection,
 	ProviderConnectionAuthorized,

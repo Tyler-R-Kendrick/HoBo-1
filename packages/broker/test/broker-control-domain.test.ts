@@ -19,6 +19,7 @@ import {
 	BudgetLimitExceeded,
 	ConfigureBudgetAccount,
 	ConnectionAlreadyRevoked,
+	ConnectionRebindRefused,
 	ConnectionStatusView,
 	MarkBudgetHoldUncertain,
 	ProviderConnection,
@@ -181,6 +182,31 @@ describe("@hobo/broker/domain BrokerControl Alchemy Domain model", () => {
 					}),
 				),
 				Story.rejected(new ConnectionAlreadyRevoked({ providerId: "vercel" })),
+				Story.when(
+					ProviderConnection.ref(ProviderConnectionId.make("conn-cf-prod")),
+					new AuthorizeProviderConnection({
+						providerId: "cloudflare",
+						stationId: "station-main",
+						scopeRef: "scope:deployments",
+					}),
+				),
+				Story.then(
+					ProviderConnection.ref(ProviderConnectionId.make("conn-cf-prod")),
+					new ProviderConnectionAuthorized({
+						providerId: "cloudflare",
+						stationId: "station-main",
+						scopeRef: "scope:deployments",
+					}),
+				),
+				Story.when(
+					ProviderConnection.ref(ProviderConnectionId.make("conn-cf-prod")),
+					new AuthorizeProviderConnection({
+						providerId: "cloudflare",
+						stationId: "station-edge",
+						scopeRef: "scope:deployments",
+					}),
+				),
+				Story.rejected(new ConnectionRebindRefused({ providerId: "cloudflare" })),
 				Story.view(ConnectionStatusView, conn, {
 					status: "revoked",
 					revocationReason: "rotated-owner-grant",

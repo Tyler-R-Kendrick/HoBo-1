@@ -45,6 +45,7 @@ export const StartCutoverPolicyLive = StartCutoverPolicy.toLayer(
 				to: event.to,
 				rampPlan: DEFAULT_RAMP_PLAN,
 				lowTtlSeconds: DEFAULT_LOW_TTL,
+				previousTtlSeconds: event.previousTtlSeconds,
 				completedAtMs: decodeEpochMs(event.proposedAtMs + 4_000),
 			});
 		});
@@ -211,6 +212,7 @@ export class StationRoutingApi extends Domain.Api(
 			"RegisterTrafficIncumbent",
 			"ProposeBudgetMigration",
 			"FlagCutoverReconciliation",
+			"ResolveTrafficCutoverReconciliation",
 		],
 		views: ["TrafficRoutingView"],
 	},

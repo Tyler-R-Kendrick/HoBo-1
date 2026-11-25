@@ -129,6 +129,8 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 				ttlSeconds: 300,
 				policy: {
 					cooldownMs: decodeNonNegativeMs(0),
+					rollbackCooldownMs: decodeNonNegativeMs(0),
+					flipWindowMs: decodeNonNegativeMs(86_400_000),
 					maxSwapsPerWindow: decodePositiveSwapLimit(1),
 				},
 			});
@@ -143,6 +145,8 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 		const route = TrafficRoute.ref(routeId);
 		const policy = {
 			cooldownMs: decodeNonNegativeMs(60_000),
+			rollbackCooldownMs: decodeNonNegativeMs(60_000),
+			flipWindowMs: decodeNonNegativeMs(86_400_000),
 			maxSwapsPerWindow: decodePositiveSwapLimit(1),
 		};
 		const budgetReason = NonEmptyReason.make(
@@ -200,14 +204,17 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						to: CLOUDFLARE_TARGET,
 						reason: budgetReason,
 						proposedAtMs: decodeEpochMs(1_000),
+						previousTtlSeconds: TTL_300,
 					}),
 				),
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
+					waitedSeconds: 300,
 				}),
 				Story.then(route, new CutoverTtlLowered({ ttlSeconds: TTL_30 })),
 				Story.call(TrafficRoutingBackend.applyWeight, {
@@ -337,6 +344,8 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 		const reconcileRoute = TrafficRoute.ref(reconcileRouteId);
 		const policy = {
 			cooldownMs: decodeNonNegativeMs(0),
+			rollbackCooldownMs: decodeNonNegativeMs(30_000),
+			flipWindowMs: decodeNonNegativeMs(86_400_000),
 			maxSwapsPerWindow: decodePositiveSwapLimit(4),
 		};
 		const canaryFailure = NonEmptyReason.make("5xx spike on canary");
@@ -382,14 +391,17 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						to: VERCEL_TARGET,
 						reason: replenishReason,
 						proposedAtMs: decodeEpochMs(1_000),
+						previousTtlSeconds: TTL_300,
 					}),
 				),
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId: rollbackRouteId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
+					waitedSeconds: 300,
 				}),
 				Story.then(rollbackRoute, new CutoverTtlLowered({ ttlSeconds: TTL_30 })),
 				Story.call(TrafficRoutingBackend.applyWeight, {
@@ -428,6 +440,7 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 					new CutoverRolledBack({
 						restored: CLOUDFLARE_TARGET,
 						reason: canaryFailure,
+						rolledBackAtMs: decodeEpochMs(5_000),
 					}),
 				),
 				Story.view(TrafficRoutingView, rollbackRoute, {
@@ -467,11 +480,13 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						to: CLOUDFLARE_TARGET,
 						reason: shiftReason,
 						proposedAtMs: decodeEpochMs(3_000),
+						previousTtlSeconds: TTL_300,
 					}),
 				),
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId: reconcileRouteId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.fail(
 					TrafficRoutingBackend.lowerTtl,
@@ -525,6 +540,8 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 		const route = TrafficRoute.ref(routeId);
 		const policy = {
 			cooldownMs: decodeNonNegativeMs(0),
+			rollbackCooldownMs: decodeNonNegativeMs(30_000),
+			flipWindowMs: decodeNonNegativeMs(86_400_000),
 			maxSwapsPerWindow: decodePositiveSwapLimit(4),
 		};
 		const canaryFailure = NonEmptyReason.make("canary-5xx-burst");
@@ -565,14 +582,17 @@ describe("@hobo/stations/domain StationRouting (static invariants + BDD)", () =>
 						to: CLOUDFLARE_TARGET,
 						reason: shiftReason,
 						proposedAtMs: decodeEpochMs(1_000),
+						previousTtlSeconds: TTL_300,
 					}),
 				),
 				Story.call(TrafficRoutingBackend.lowerTtl, {
 					routeId,
 					ttlSeconds: TTL_30,
+					previousTtlSeconds: TTL_300,
 				}),
 				Story.succeed(TrafficRoutingBackend.lowerTtl, {
 					appliedTtlSeconds: TTL_30,
+					waitedSeconds: 300,
 				}),
 				Story.then(route, new CutoverTtlLowered({ ttlSeconds: TTL_30 })),
 				Story.call(TrafficRoutingBackend.applyWeight, {
