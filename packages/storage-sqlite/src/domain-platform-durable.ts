@@ -1,7 +1,12 @@
 import type { Delivery } from "@alchemy.run/domain/Platform";
 import * as Effect from "effect/Effect";
 import type * as Semaphore from "effect/Semaphore";
-import { asNumber, asText, type SqliteDriver, type SqliteRunResult } from "./driver.js";
+import {
+	asNumber,
+	asText,
+	type SqliteDriver,
+	type SqliteRunResult,
+} from "./driver.js";
 
 // public-contract: SQLite DDL for durable domain side tables (outbox, schedules, workflow timers).
 export const SQLITE_DOMAIN_DURABLE_SCHEMA_SQL = `
@@ -84,7 +89,10 @@ export interface DomainOutbox {
 		modelName: string,
 		deliveries: ReadonlyArray<Delivery>,
 	): ReadonlyArray<number>;
-	dropStaged(modelName: string, ids: ReadonlyArray<number>): Effect.Effect<void>;
+	dropStaged(
+		modelName: string,
+		ids: ReadonlyArray<number>,
+	): Effect.Effect<void>;
 	drainPending(
 		modelName: string,
 		deliver: (delivery: Delivery) => Effect.Effect<void>,
@@ -108,7 +116,7 @@ export function makeDomainOutbox(driver: SqliteDriver): DomainOutbox {
 
 	const decodeDelivery = (json: string): Delivery => {
 		const parsed = JSON.parse(json);
-		if (parsed === null || !Object.prototype.hasOwnProperty.call(parsed, "target")) {
+		if (parsed === null || !Object.hasOwn(parsed, "target")) {
 			throw new DomainPersistenceError("domain_outbox.delivery", 0);
 		}
 		// SAFETY: Outbox rows are written only by this module with Delivery-shaped JSON from domain commits.
@@ -221,13 +229,7 @@ export function makeDomainScheduleStore(
 	});
 
 	return {
-		upsert(
-			modelName,
-			aggregateName,
-			instanceId,
-			scheduleName,
-			record,
-		) {
+		upsert(modelName, aggregateName, instanceId, scheduleName, record) {
 			const result = upsertStmt.run(
 				modelName,
 				aggregateName,
