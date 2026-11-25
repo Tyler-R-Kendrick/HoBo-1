@@ -5,6 +5,8 @@ import { Activity } from "effect/workflow";
 import {
 	CloudBackendTarget,
 	EpochMs,
+	decodeLoweredTtlEvidence,
+	decodeNonNegativeSeconds,
 	NonEmptyReason,
 	ProgressiveRampPlan,
 	RampWeightPercent,
@@ -74,6 +76,16 @@ export class TrafficRoutingBackend extends Domain.ExternalSystem(
 			},
 			success: {
 				restored: Schema.Boolean,
+			},
+			error: [RoutingMutationAmbiguous],
+		},
+		restoreTtl: {
+			args: {
+				routeId: TrafficRouteId,
+				ttlSeconds: TtlSeconds,
+			},
+			success: {
+				appliedTtlSeconds: TtlSeconds,
 			},
 			error: [RoutingMutationAmbiguous],
 		},
@@ -161,7 +173,13 @@ export const ExecuteProgressiveCutoverLive = ExecuteProgressiveCutover.toLayer(
 					.send(
 						key,
 						new RecordTtlLowered({
-							ttlSeconds: lowered.success.appliedTtlSeconds,
+							evidence: decodeLoweredTtlEvidence({
+								previousTtlSeconds,
+								loweredTtlSeconds: lowered.success.appliedTtlSeconds,
+								waitedSeconds: decodeNonNegativeSeconds(
+									lowered.success.waitedSeconds,
+								),
+							}),
 						}),
 					)
 					.pipe(Effect.asVoid),
@@ -261,6 +279,31 @@ export const ExecuteProgressiveCutoverLive = ExecuteProgressiveCutover.toLayer(
 							name: `flag-restore-reconciliation-${weightPercent}`,
 							execute: routes
 								.send(key, new FlagCutoverReconciliation({ reason }))
+								.pipe(Effect.asVoid),
+						});
+						return;
+					}
+
+					const ttlRestored = yield* Activity.make({
+						name: `restore-ttl-${weightPercent}`,
+						success: Schema.Struct({ appliedTtlSeconds: TtlSeconds }),
+						error: RoutingMutationAmbiguous,
+						execute: backend.restoreTtl({
+							routeId: key,
+							ttlSeconds: previousTtlSeconds,
+						}),
+					}).pipe(Effect.result);
+
+					if (ttlRestored._tag === "Failure") {
+						yield* Activity.make({
+							name: `flag-ttl-restore-reconciliation-${weightPercent}`,
+							execute: routes
+								.send(
+									key,
+									new FlagCutoverReconciliation({
+										reason: ttlRestored.failure.reason,
+									}),
+								)
 								.pipe(Effect.asVoid),
 						});
 						return;

@@ -6,7 +6,14 @@ import {
 } from "@hobo/storage-sqlite";
 import * as Layer from "effect/Layer";
 import { GhRelay, GhRelayHandlers } from "../domain/index.js";
+import type { GhRelayRouteFactsService } from "./route-facts.js";
 import type { GhLintSandboxService, GhRunnerProtocolService } from "./rivet.js";
+import { GhRelayRouteFactsFailClosed } from "./route-facts.js";
+
+export {
+	createGhRelayRouteFactsFromStore,
+	GhRelayRouteFactsFailClosed,
+} from "./route-facts.js";
 
 export {
 	type AnswerPickRunnerInput,
@@ -39,6 +46,7 @@ export function createGhRelayInMemoryLayer<
 		SandboxErr,
 		SandboxReq
 	>;
+	readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 }) {
 	return GhRelay.layer(GhRelayHandlers).pipe(
 		Layer.provide(
@@ -46,6 +54,7 @@ export function createGhRelayInMemoryLayer<
 				Domain.InMemory,
 				externals.runnerProtocol,
 				externals.lintSandbox,
+				externals.routeFacts ?? GhRelayRouteFactsFailClosed,
 			),
 		),
 	);
@@ -64,11 +73,12 @@ export function createGhRelaySqliteLayer<
 			ProtoErr,
 			ProtoReq
 		>;
-		readonly lintSandbox: Layer.Layer<
+		readonly 		lintSandbox: Layer.Layer<
 			GhLintSandboxService,
 			SandboxErr,
 			SandboxReq
 		>;
+		readonly routeFacts?: Layer.Layer<GhRelayRouteFactsService>;
 	},
 	options?: SqliteDomainPlatformOptions,
 ) {
@@ -78,6 +88,7 @@ export function createGhRelaySqliteLayer<
 				createSqliteDomainPlatform(driver, options),
 				externals.runnerProtocol,
 				externals.lintSandbox,
+				externals.routeFacts ?? GhRelayRouteFactsFailClosed,
 			),
 		),
 	);

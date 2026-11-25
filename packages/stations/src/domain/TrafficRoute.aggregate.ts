@@ -10,6 +10,7 @@ import {
 	NonEmptyReason,
 	NonNegativeCount,
 	RampWeightPercent,
+	LoweredTtlEvidence,
 	StabilityPolicy,
 	TrafficRouteId,
 	TtlSeconds,
@@ -84,6 +85,7 @@ export class CutoverRolledBack extends Domain.Event("CutoverRolledBack", {
 	restored: CloudBackendTarget,
 	reason: NonEmptyReason,
 	rolledBackAtMs: EpochMs,
+	restoredTtlSeconds: TtlSeconds,
 }) {}
 
 export class CutoverReconciliationResolved extends Domain.Event(
@@ -149,7 +151,7 @@ export class RecordTtlLowered extends Domain.Command(
 	{
 		target: TrafficRouteId,
 		input: {
-			ttlSeconds: TtlSeconds,
+			evidence: LoweredTtlEvidence,
 		},
 		events: [CutoverTtlLowered],
 		rejects: [CutoverNotInProgress, CutoverPreconditionRefused],
@@ -255,6 +257,7 @@ export const TtlLoweringRouteState = Schema.TaggedStruct("TtlLowering", {
 	challenger: CloudBackendTarget,
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
+	registeredTtlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
 	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
@@ -266,6 +269,7 @@ export const RampingRouteState = Schema.TaggedStruct("Ramping", {
 	targetWeightPercent: RampWeightPercent,
 	policy: StabilityPolicy,
 	ttlSeconds: TtlSeconds,
+	registeredTtlSeconds: TtlSeconds,
 	swapsInWindow: NonNegativeCount,
 	flipWindowStartMs: Schema.NullOr(EpochMs),
 	lastCompletedAtMs: Schema.NullOr(EpochMs),
@@ -477,12 +481,21 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 			if (state._tag !== "TtlLowering") {
 				return new CutoverNotInProgress({ phase: state._tag });
 			}
-			if (cmd.ttlSeconds >= state.ttlSeconds) {
+			if (cmd.evidence.previousTtlSeconds !== state.registeredTtlSeconds) {
 				return new CutoverPreconditionRefused({
 					reason: "ttl-not-lowered",
 				});
 			}
-			return [new CutoverTtlLowered({ ttlSeconds: cmd.ttlSeconds })];
+			if (cmd.evidence.loweredTtlSeconds >= cmd.evidence.previousTtlSeconds) {
+				return new CutoverPreconditionRefused({
+					reason: "ttl-not-lowered",
+				});
+			}
+			return [
+				new CutoverTtlLowered({
+					ttlSeconds: cmd.evidence.loweredTtlSeconds,
+				}),
+			];
 		},
 		RecordRampStep: (state, cmd) => {
 			if (state._tag !== "Ramping") {
@@ -534,6 +547,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 					restored: state.incumbent,
 					reason: cmd.reason,
 					rolledBackAtMs: cmd.rolledBackAtMs,
+					restoredTtlSeconds: state.registeredTtlSeconds,
 				}),
 			];
 		},
@@ -588,6 +602,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				challenger: event.to,
 				policy: state.policy,
 				ttlSeconds: state.ttlSeconds,
+				registeredTtlSeconds: event.previousTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
 				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
@@ -605,6 +620,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 					state._tag === "Ramping" ? state.targetWeightPercent : ZERO_WEIGHT,
 				policy: state.policy,
 				ttlSeconds: event.ttlSeconds,
+				registeredTtlSeconds: state.registeredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
 				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
@@ -621,6 +637,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				targetWeightPercent: event.targetWeightPercent,
 				policy: state.policy,
 				ttlSeconds: state.ttlSeconds,
+				registeredTtlSeconds: state.registeredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
 				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
@@ -656,7 +673,7 @@ export class TrafficRoute extends Domain.Aggregate("TrafficRoute", {
 				_tag: "RolledBack" as const,
 				incumbent: event.restored,
 				policy: state.policy,
-				ttlSeconds: state.ttlSeconds,
+				ttlSeconds: event.restoredTtlSeconds,
 				swapsInWindow: state.swapsInWindow,
 				flipWindowStartMs: state.flipWindowStartMs,
 				lastCompletedAtMs: state.lastCompletedAtMs,
