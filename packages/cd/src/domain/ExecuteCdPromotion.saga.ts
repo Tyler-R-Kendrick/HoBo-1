@@ -153,10 +153,7 @@ export const ExecuteCdPromotionLive = ExecuteCdPromotion.toLayer(
 						yield* Activity.make({
 							name: "record-realization-failure",
 							execute: promotions
-								.send(
-									key,
-									new FailCdPromotion({ reason: failure.reason }),
-								)
+								.send(key, new FailCdPromotion({ reason: failure.reason }))
 								.pipe(Effect.asVoid),
 						});
 						return null;
