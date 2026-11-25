@@ -27,10 +27,13 @@ export class RunnerProvisionFailed extends Domain.Rejection(
 	},
 ) {}
 
-export class RunnerReleaseFailed extends Domain.Rejection("RunnerReleaseFailed", {
-	slotId: SlotId,
-	reason: NonEmptyReason,
-}) {}
+export class RunnerReleaseFailed extends Domain.Rejection(
+	"RunnerReleaseFailed",
+	{
+		slotId: SlotId,
+		reason: NonEmptyReason,
+	},
+) {}
 
 export class RunnerBackend extends Domain.ExternalSystem("RunnerBackend", {
 	provisionRunner: {

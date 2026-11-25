@@ -293,8 +293,7 @@ export class JobDispatch extends Domain.Aggregate("JobDispatch", {
 			runnerLabel: event.runnerLabel,
 			externalRunnerId: event.externalRunnerId,
 			attempts: event.attempts,
-			deadlineSeconds:
-				state._tag === "Queued" ? state.deadlineSeconds : null,
+			deadlineSeconds: state._tag === "Queued" ? state.deadlineSeconds : null,
 		}),
 		JobDispatchCompleted: (state, event) =>
 			state._tag === "Bound"

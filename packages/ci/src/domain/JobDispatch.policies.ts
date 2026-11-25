@@ -65,6 +65,7 @@ export const JobCompletedPolicyLive = JobCompletedPolicy.toLayer(
 	Effect.gen(function* () {
 		const fleet = yield* StationFleet;
 		const backend = yield* RunnerBackend;
+		// SAFETY: Policy.Handler is typed void-only; releaseRunner failures must surface before slot settlement.
 		return Effect.fn(function* ({ event }) {
 			yield* backend.releaseRunner({
 				stationId: event.stationId,
@@ -97,6 +98,7 @@ export const JobExpiredPolicyLive = JobExpiredPolicy.toLayer(
 	Effect.gen(function* () {
 		const fleet = yield* StationFleet;
 		const backend = yield* RunnerBackend;
+		// SAFETY: Policy.Handler is typed void-only; releaseRunner failures must surface before slot settlement.
 		return Effect.fn(function* ({ event }) {
 			if (event.slotId === null || event.stationId === null) {
 				return;
