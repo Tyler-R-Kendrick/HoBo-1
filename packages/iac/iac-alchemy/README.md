@@ -876,7 +876,8 @@ and clock correctness remain independently verified host responsibilities.
 
 ## Environments, Sandboxes & Test Harness
 
-- `@hobo/iac-alchemy/environments`: integrates `@alchemy.run/infisical` (`createHoboInfisicalSecrets`), disables ambient shell secrets via `Secrets.ProcessEnv({ disabled: true })`, provides `OwnerStoreSecretProvider` (`ConfigProvider.layerAdd`) for `owner://<NAME>` credentials as `Config.Redacted`, and validates Alchemy stages and profiles with redacted `ProviderDetails`.
+- `@hobo/iac-alchemy/environments`: registers HoBo's Alchemy v2 `AuthProvider` (`HoboAuthProviderLayer`, `HOBO_AUTH_PROVIDER_NAME = "HoboAuth"`, `HoboAuthCredentialsFromProviderLayer` with `lazyCredentials` caching and fail-closed `NeedsReauth`), integrates `@alchemy.run/infisical` (`createHoboInfisicalSecrets`), `@alchemy.run/doppler` (`createHoboDopplerSecrets`), and `OwnerStoreSecretProvider` through `createHoboSecretProviders` (disabling ambient shell secrets via `Secrets.ProcessEnv({ disabled: true })`), exposes `readHoboBetterAuthConfig` (`Config.Redacted("HOBO_AUTH_SECRET")` and optional GitHub App OAuth credentials), and validates Alchemy stages and profiles with redacted `ProviderDetails`.
+- `@hobo/iac-alchemy/better-auth`: wraps `@alchemy.run/better-auth` with a Node `node:sqlite` Kysely dialect (`createNodeSqliteBetterAuthDatabaseLayer`), schema migrations (`runHoboBetterAuthMigrations`), brokered `Config.Redacted("HOBO_AUTH_SECRET")` signing (`createHoboBetterAuthLayer`, `fingerprintSigningSecret`), 5-operation `SecondaryStorage` (`createMemorySecondaryStorageLayer`, `createSqliteSecondaryStorageLayer`), and fail-closed HTTP middleware (`createHoboBetterAuthHttpApp`, returning 401 when unauthenticated and 503 on session-lookup outage).
 - `@hobo/iac-alchemy/sandboxes`: integrates `@alchemy.run/boat` (`Boat.Snapshot`, `Boat.Sandbox`) alongside a Boat-shaped custom Agent37 sandbox provider (`Agent37Snapshot`, `Agent37Sandbox`, snapshot setup hashing, and live sandbox forks) for CI/CD workloads.
 - `@hobo/iac-alchemy/test-harness`: provides a Vitest-compatible `createAlchemyTestHarness` following Alchemy's `Test.make` one-deploy-per-suite (`beforeAll(deploy)` / `afterAll(destroy)`) and provider-lifecycle session patterns.
 - `@hobo/iac-alchemy/cluster`: integrates `@alchemy.run/effect-cluster` (`Cluster.Database.fromUrl` with `Config.Redacted` credentials, `Cluster.providers()`, swappable `ClusterCloudflare.DurableObjectPool` / container pool topology validation) for HoBo CI fleet coordination.
@@ -884,9 +885,3 @@ and clock correctness remain independently verified host responsibilities.
 - `@hobo/iac-alchemy/git`: integrates `@alchemy.run/git` (self-hosted Git on R2/S3 + Durable Objects/D1) and `@alchemy.run/github` authenticated exclusively via HoBo GitHub App installation credentials (`GitHub.fromApp` + `owner://` locators) while refusing Actions secrets/variables and PAT resources.
 - `@hobo/iac-alchemy/vercel`: models Vercel service deployment as a custom Alchemy v2 cloud provider (`VercelProject`, `VercelServiceDeployment`, `VercelAlias`, `VercelCloudProviders`) enforcing unlinked Git (`gitLink: "disabled"`) alongside budget/credit-driven dual-cloud routing with Cloudflare (`selectDualCloudBudgetTarget`).
 - Redundant `@hobo/iac-terraform` and `@hobo/iac-crossplane` packages and tests were removed as `@hobo/iac-alchemy` became the primary IaC substrate.
-
-
-
-
-
-
