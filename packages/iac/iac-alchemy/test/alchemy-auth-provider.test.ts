@@ -194,9 +194,13 @@ describe("Alchemy AuthProvider, Profiles, and Secret Providers for HoBo Auth", (
 				}),
 		});
 
+		const nonCiConfigLayer = ConfigProvider.layer(
+			ConfigProvider.fromUnknown({ CI: "false" }),
+		);
 		const platformLayer = Layer.mergeAll(
 			NodeServices.layer,
 			SecureRandom.layerWebCrypto,
+			nonCiConfigLayer,
 		);
 		const baseLayer = Layer.mergeAll(
 			platformLayer,
