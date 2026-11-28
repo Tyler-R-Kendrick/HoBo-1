@@ -13,7 +13,7 @@ import {
 	type SecondaryStorageService,
 } from "@alchemy.run/better-auth";
 import { Memory as BetterAuthMemory } from "@alchemy.run/better-auth/Memory";
-import { RuntimeContext } from "alchemy";
+import { RuntimeContext } from "alchemy/RuntimeContext";
 import { getMigrations } from "better-auth/db/migration";
 import type * as Config from "effect/Config";
 import * as Context from "effect/Context";

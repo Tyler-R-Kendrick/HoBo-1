@@ -36,6 +36,7 @@ export {
 	OwnerStoreProfileConfig,
 	renderHoboAuthProfileDetails,
 } from "./auth-provider.js";
+export { type OwnerCredentialResolver, Stage };
 
 const ALCHEMY_STAGE_PATTERN = /^[a-z0-9][-_a-z0-9]*$/u;
 const ALCHEMY_PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
@@ -184,10 +185,10 @@ export interface OwnerStoreSecretProviderOptions {
 	) => Readonly<Record<string, string>>;
 }
 
-export function createOwnerStoreSecretProvider(
+export function createOwnerStoreConfigLayer(
 	options: OwnerStoreSecretProviderOptions,
-): OwnerStoreSecretProvider {
-	const layer: AlchemySecrets.SecretsLayer = Layer.unwrap(
+): Layer.Layer<never, AlchemyEnvironmentConfigError, Stage> {
+	return Layer.unwrap(
 		Effect.gen(function* () {
 			const stage = yield* Stage;
 			const mapping =
@@ -228,7 +229,14 @@ export function createOwnerStoreSecretProvider(
 			);
 		}),
 	);
-	return new OwnerStoreSecretProvider({ layer });
+}
+
+export function createOwnerStoreSecretProvider(
+	options: OwnerStoreSecretProviderOptions,
+): OwnerStoreSecretProvider {
+	return new OwnerStoreSecretProvider({
+		layer: createOwnerStoreConfigLayer(options),
+	});
 }
 
 export function createHoboSecretProviders(
